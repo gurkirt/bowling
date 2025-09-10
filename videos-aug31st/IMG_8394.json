@@ -1,0 +1,18 @@
+{
+  "video": "IMG_8394.MOV",
+  "class": "bowling",
+  "start_frame": 132,
+  "end_frame": 143,
+  "total_frames": 309,
+  "direction_labels": "right",
+  "bounding_boxes": {
+    "137": [
+      [
+        645,
+        700,
+        1053,
+        1803
+      ]
+    ]
+  }
+}

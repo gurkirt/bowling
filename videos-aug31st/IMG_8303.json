@@ -1,0 +1,18 @@
+{
+  "video": "IMG_8303.MOV",
+  "class": "bowling",
+  "start_frame": 106,
+  "end_frame": 115,
+  "total_frames": 227,
+  "direction_labels": "left",
+  "bounding_boxes": {
+    "106": [
+      [
+        -10,
+        920,
+        243,
+        1815
+      ]
+    ]
+  }
+}
