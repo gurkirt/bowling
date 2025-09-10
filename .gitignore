@@ -1,0 +1,4 @@
+*.MOV
+analysis/
+crops_dataset/
+.vscode/
