@@ -5,9 +5,6 @@ from glob import glob
 import cv2
 import argparse
 
-def load_classes(classes_file):
-    with open(classes_file, 'r') as f:
-        return [line.strip() for line in f if line.strip()]
 
 def get_video_files(video_dir):
     return sorted(glob(os.path.join(video_dir, '*.MOV')))
@@ -17,15 +14,12 @@ def annotation_path(video_path):
     return os.path.join(os.path.dirname(video_path), f"{base}.json")
 
 
-def label_video(video_path, classes):
+def label_video(video_path, class_name):
     print(f"\nLabeling: {video_path}")
     cap = cv2.VideoCapture(video_path)
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     print(f"Total frames: {total_frames}")
-    print("Classes:")
-    for idx, cls in enumerate(classes):
-        print(f"  {idx}: {cls}")
-    class_idx = 0 #int(input("Select action class index: "))
+    print(f"Classes: {class_name}")
 
     current_frame = 0
     instances = []  # List of action instances
@@ -38,21 +32,27 @@ def label_video(video_path, classes):
         if not ret:
             return False
         display = frame.copy()
-        top_offset = 200
-        bottom_offset = 100
-        
+        top_offset = 100
+        bottom_offset = 10
+        scale_factor_1 = 2.0
+        max_width = 640*scale_factor_1
+        max_height = 480*scale_factor_1
+        scale_factor = max_width/display.shape[1] if display.shape[1] > max_width else 1
+        scale_factor = min(scale_factor, max_height/display.shape[0] if display.shape[0] > max_height else 1)
         # Display current instance info
         text = f"Frame: {frame_idx+1}/{total_frames} | Current: Start={current_start} End={current_end}"
-        cv2.putText(display, text, (10, top_offset + 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
-        
+        # print(scale_factor)
+        cv2.putText(display, text, (10, top_offset + 60), cv2.FONT_HERSHEY_SIMPLEX, int(2), (0,255,0), int(1/scale_factor))
+
         # Display existing instances
         instances_text = f"Instances: {len(instances)}"
-        cv2.putText(display, instances_text, (10, top_offset + 60), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,0,0), 2)
-        
+        cv2.putText(display, instances_text, (10, top_offset + 160), cv2.FONT_HERSHEY_SIMPLEX, int(2), (255,0,0), int(1/scale_factor))
+
         # Crop and resize
         display = display[top_offset:-bottom_offset, :]
-        scale_factor = 0.6
+        
         display = cv2.resize(display, (0, 0), fx=scale_factor, fy=scale_factor)
+        print(f"Scale factor: {scale_factor}", display.shape)
         cv2.imshow("Label Video", display)
         return True
 
@@ -88,7 +88,8 @@ def label_video(video_path, classes):
                     instance = {
                         "start_frame": current_start,
                         "end_frame": current_end,
-                        "middle_frame": (current_start + current_end) // 2
+                        "middle_frame": (current_start + current_end) // 2,
+                        "class": class_name
                     }
                     instances.append(instance)
                     print(f"Added instance {len(instances)}: frames {current_start}-{current_end} (middle: {instance['middle_frame']})")
@@ -106,7 +107,8 @@ def label_video(video_path, classes):
                     instance = {
                         "start_frame": current_start,
                         "end_frame": current_end,
-                        "middle_frame": (current_start + current_end) // 2
+                        "middle_frame": (current_start + current_end) // 2,
+                        "class": class_name
                     }
                     instances.append(instance)
                     print(f"Added instance {len(instances)}: frames {current_start}-{current_end} (middle: {instance['middle_frame']})")
@@ -139,9 +141,8 @@ def label_video(video_path, classes):
     cap.release()
     return {
         "video": os.path.basename(video_path),
-        "class": classes[class_idx],
-        "instances": instances,
-        "total_frames": total_frames
+        "total_frames": total_frames,
+        "temporal_events": instances
     }
 
 
@@ -149,10 +150,10 @@ def label_video(video_path, classes):
 
 
 
-def label_bounding_box(video_path, start_frame):
-    print(f"\nBounding box labeling: {video_path} at frame {start_frame}")
+def label_bounding_box(video_path, current_frame, current_box = None, class_name="bowler"):
+    print(f"\nBounding box labeling: {video_path} at frame {current_frame}")
     cap = cv2.VideoCapture(video_path)
-    cap.set(cv2.CAP_PROP_POS_FRAMES, start_frame)
+    cap.set(cv2.CAP_PROP_POS_FRAMES, current_frame)
     ret, frame = cap.read()
     if not ret:
         print("Could not read start frame.")
@@ -162,16 +163,21 @@ def label_bounding_box(video_path, start_frame):
     # Variables for bounding box
     drawing = False
     boxes = []
-    current_box = None
+    
     ix, iy = -1, -1
     
     # Create a copy for drawing
     display_frame = frame.copy()
-    top_offset = 200
-    bottom_offset = 100
+    top_offset = 100
+    bottom_offset = 0
     display_frame = display_frame[top_offset:-bottom_offset, :]
-    scale_factor = 0.6
+    scale_factor_1 = 2.0
+    max_width = 640*scale_factor_1
+    max_height = 480*scale_factor_1
+    scale_factor = display_frame.shape[1]/max_width if display_frame.shape[1] > max_width else 1
+    scale_factor = min(scale_factor, display_frame.shape[0]/max_height if display_frame.shape[0] > max_height else 1)
     display_frame = cv2.resize(display_frame, (0, 0), fx=scale_factor, fy=scale_factor)
+    print(f"Scale factor: {scale_factor}", display_frame.shape)
     original_frame = display_frame.copy()
     
     def draw_existing_boxes():
@@ -179,7 +185,7 @@ def label_bounding_box(video_path, start_frame):
         for i, box in enumerate(boxes):
             x1, y1, x2, y2 = box
             cv2.rectangle(temp_frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
-            cv2.putText(temp_frame, f"Box {i+1}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+            cv2.putText(temp_frame, f"Box {i+1} {class_name}", (x1, y1-10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
         return temp_frame
     
     def mouse_callback(event, x, y, flags, param):
@@ -236,8 +242,8 @@ def label_bounding_box(video_path, start_frame):
     cv2.destroyAllWindows()
     cap.release()
     
-    # Convert boxes back to original frame coordinates
-    original_boxes = []
+    # Convert boxes back to original frame coordinates and format
+    formatted_boxes = []
     for box in boxes:
         x1, y1, x2, y2 = box
         # Scale back up
@@ -245,14 +251,23 @@ def label_bounding_box(video_path, start_frame):
         y1, y2 = int(y1 / scale_factor), int(y2 / scale_factor)
         # Add back the offset
         y1, y2 = y1 + top_offset, y2 + top_offset
-        original_boxes.append([x1, y1, x2, y2])
+        
+        # Format as required with class field
+        formatted_box = {
+            "x1": x1,
+            "y1": y1,
+            "x2": x2,
+            "y2": y2,
+            "class": "bowler"  # Default class for bowling annotations
+        }
+        formatted_boxes.append(formatted_box)
     
-    return {str(start_frame): original_boxes}
+    return {str(current_frame): formatted_boxes}
 
 
     
 def label_actions(args):
-    classes = load_classes(args.classes_file)
+    class_name = args.action_class
     video_files = get_video_files(args.video_dir)
     for video_path in video_files:
         anno_path = annotation_path(video_path)
@@ -264,7 +279,7 @@ def label_actions(args):
             # Check if start/end frame are valid
             if anno.get('start_frame') is None or anno.get('end_frame') is None:
                 print(f"Annotation for {video_path} is incomplete. Relabeling...")
-                needs_label = False
+                needs_label = True
             else:
                 annotation = anno
             
@@ -272,16 +287,17 @@ def label_actions(args):
             needs_label = True
         
         if needs_label:
-            annotation = label_video(video_path, classes)
+            annotation = label_video(video_path, class_name)
             with open(anno_path, 'w', encoding='utf-8') as f:
                 json.dump(annotation, f, indent=2)
             print(f"Saved annotation to {anno_path}")
         
-        # Always reload annotation after possible update
+        # Always reload annotation after possible updat
         with open(anno_path, 'r', encoding='utf-8') as f:
             annotation = json.load(f)
 
 def label_boxes(args):
+    box_class = args.box_class
     video_files = get_video_files(args.video_dir)
     for video_path in video_files:
         anno_path = annotation_path(video_path)
@@ -289,47 +305,71 @@ def label_boxes(args):
             with open(anno_path, 'r', encoding='utf-8') as f:
                 annotation = json.load(f)
         else:
-            annotation = None
+            print(f"No annotation file found for {video_path}. Skipping...")
+            continue
 
-        if annotation.get('start_frame') is not None and annotation.get('end_frame') is not None:
+        # Check if temporal_events exist
+        temporal_events = annotation.get('temporal_events', [])
+        if not temporal_events:
+            print(f"No temporal events found for {video_path}. Skipping...")
+            continue
+        
+        bbox_labels = annotation.get('bounding_boxes', {})
+        
+        # Loop over each temporal event
+        for event_idx, event in enumerate(temporal_events):
+            start_frame = event['start_frame']
+            end_frame = event['end_frame']
+            middle_frame = event['middle_frame']
+            event_class = event.get('class', 'bowling')
             
-            # Check if bounding box annotation is needed for any frame between start and end
-            needs_bbox = False
-            bbox_labels = annotation.get('bounding_boxes', {})
-            start_frame = annotation['start_frame']
-            end_frame = annotation['end_frame']
+            print(f"\nProcessing temporal event {event_idx + 1}/{len(temporal_events)} for {video_path}")
+            print(f"Event: frames {start_frame}-{end_frame}, class: {event_class}")
             
-            # Check if any frame between start and end has bounding boxes
-            has_bbox = False
+            # Check if bounding box exists for any frame in the event range with the correct class
+            needs_bbox = True
+            
+            # Loop through all frames in the temporal event range
             for frame_idx in range(start_frame, end_frame + 1):
                 frame_str = str(frame_idx)
-                if frame_str in bbox_labels and bbox_labels[frame_str]:
-                    has_bbox = True
-                    break
+                if frame_str in bbox_labels:
+                    # Check if any bounding box has the correct class
+                    for bbox in bbox_labels[frame_str]:
+                        if bbox.get('class') == box_class:
+                            needs_bbox = False
+                            print(f"Bounding box with class '{box_class}' already exists for frame {frame_idx}")
+                            break
+                    if not needs_bbox:
+                        break
             
-            if not has_bbox:
-                needs_bbox = True
-                print(f"No bounding boxes found for frames {start_frame}-{end_frame} of {video_path}. Adding bbox...")
-            else:
-                print(f"Bounding boxes exist for {video_path} in the action range.")
-            
-            # Run bounding box labeling if needed
             if needs_bbox:
-                # Use middle frame for annotation
-                middle_frame = (start_frame + end_frame) // 2
-                bbox_labels_new = label_bounding_box(video_path, middle_frame)
-                if 'bounding_boxes' not in annotation:
-                    annotation['bounding_boxes'] = {}
-                annotation['bounding_boxes'].update(bbox_labels_new)
-                with open(anno_path, 'w', encoding='utf-8') as f:
-                    json.dump(annotation, f, indent=2)
-                print(f"Saved bounding boxes to {anno_path}")
+                print(f"No bounding box with class '{box_class}' found for frame {middle_frame}. Adding bbox...")
+                bbox_labels_new = label_bounding_box(video_path, middle_frame, class_name=box_class)
+                
+                if bbox_labels_new:  # Only update if we got new boxes
+                    if 'bounding_boxes' not in annotation:
+                        annotation['bounding_boxes'] = {}
+                    annotation['bounding_boxes'].update(bbox_labels_new)
+                    
+                    # Save annotation after each event
+                    with open(anno_path, 'w', encoding='utf-8') as f:
+                        json.dump(annotation, f, indent=2)
+                    print(f"Saved bounding boxes to {anno_path}")
+                else:
+                    print(f"No bounding boxes were created for frame {middle_frame}")
+            
+        print(f"Completed processing all temporal events for {video_path}")
 
 
-if __name__ == "__main__":
+def main():
+
     parser = argparse.ArgumentParser(description="Label start/end frames for actions in videos.")
-    parser.add_argument("--video_dir", help="Directory containing video files", default="videos-aug31st")
-    parser.add_argument("--classes_file", help="Text file with action classes", default="classes.txt")
+    parser.add_argument("--video_dir", help="Directory containing video files", default="videos-sept7th")
+    parser.add_argument("--action_class", help="Action class name", default="bowling", choices=["bowling"])
+    parser.add_argument("--box_class", help="Bounding box class name", default="bowler", choices=["bowler"])
     args = parser.parse_args()
     label_actions(args)
-    label_boxes(args)
+    # label_boxes(args)
+
+if __name__ == "__main__":
+    main()
