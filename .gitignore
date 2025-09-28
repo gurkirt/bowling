@@ -1,4 +1,4 @@
-*.MOV
 analysis/
 crops_dataset/
+videos_not_used/
 .vscode/
