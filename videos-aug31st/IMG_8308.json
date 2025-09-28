@@ -1,18 +1,23 @@
 {
   "video": "IMG_8308.MOV",
-  "class": "bowling",
-  "start_frame": 121,
-  "end_frame": 129,
   "total_frames": 267,
-  "direction_labels": "left",
+  "temporal_events": [
+    {
+      "start_frame": 121,
+      "end_frame": 129,
+      "middle_frame": 125,
+      "class": "bowling"
+    }
+  ],
   "bounding_boxes": {
     "121": [
-      [
-        -20,
-        928,
-        236,
-        1768
-      ]
+      {
+        "x1": -20,
+        "y1": 928,
+        "x2": 236,
+        "y2": 1768,
+        "class": "bowler"
+      }
     ]
   }
 }

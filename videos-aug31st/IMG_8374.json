@@ -1,18 +1,23 @@
 {
   "video": "IMG_8374.MOV",
-  "class": "bowling",
-  "start_frame": 47,
-  "end_frame": 55,
   "total_frames": 152,
-  "direction_labels": "left",
+  "temporal_events": [
+    {
+      "start_frame": 47,
+      "end_frame": 55,
+      "middle_frame": 51,
+      "class": "bowling"
+    }
+  ],
   "bounding_boxes": {
     "51": [
-      [
-        120,
-        775,
-        348,
-        1465
-      ]
+      {
+        "x1": 120,
+        "y1": 775,
+        "x2": 348,
+        "y2": 1465,
+        "class": "bowler"
+      }
     ]
   }
 }
