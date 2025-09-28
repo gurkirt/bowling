@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-convert_annotations.py - Convert old annotation format to new format with instances
+convert_annotations.py - Convert old annotation format to new format with temporal_events
 """
 
 import os
@@ -13,13 +13,12 @@ def convert_annotation(old_annotation):
     """Convert old format annotation to new format"""
     new_annotation = {
         "video": old_annotation.get("video", ""),
-        "class": old_annotation.get("class", "bowling"),
         "total_frames": old_annotation.get("total_frames", 0),
-        "instances": []
+        "temporal_events": []
     }
     
-    # Convert single start_frame/end_frame to instances array
-    if "start_frame" in old_annotation and "end_frame" in old_annotation:
+    # Convert single start_frame/end_frame to temporal_events array
+    if "start_frame" in old_annotation and "end_frame" in old_annotation and old_annotation['start_frame'] is not None and old_annotation['end_frame'] is not None:
         start_frame = old_annotation["start_frame"]
         end_frame = old_annotation["end_frame"]
         middle_frame = (start_frame + end_frame) // 2
@@ -27,15 +26,23 @@ def convert_annotation(old_annotation):
         instance = {
             "start_frame": start_frame,
             "end_frame": end_frame,
-            "middle_frame": middle_frame
+            "middle_frame": middle_frame,
+            "class": old_annotation.get("class", "bowling"),
         }
-        new_annotation["instances"].append(instance)
-    
+        new_annotation["temporal_events"].append(instance)
+
     # Keep bounding_boxes if they exist
     if "bounding_boxes" in old_annotation:
         new_annotation["bounding_boxes"] = old_annotation["bounding_boxes"]
-    
-    # Note: direction_labels are intentionally removed as they will be inferred from bounding boxes
+        new_boxes = {}
+        for k in new_annotation["bounding_boxes"]:
+            
+            boxes  = new_annotation["bounding_boxes"][k]
+            new_boxes[k] = []
+            for box in boxes:
+                new_boxes[k].append({'x1':box[0],'y1':box[1], 'x2':box[2], 'y2':box[3], 'class':'bowler'})
+
+        new_annotation["bounding_boxes"] = new_boxes
     
     return new_annotation
 
@@ -67,7 +74,7 @@ def main():
                 old_annotation = json.load(f)
             
             # Check if already in new format
-            if "instances" in old_annotation:
+            if "temporal_events" in old_annotation:
                 print(f"SKIP: {os.path.basename(json_file)} - already in new format")
                 skipped_count += 1
                 continue
@@ -84,7 +91,7 @@ def main():
             if args.dry_run:
                 print(f"DRY RUN: Would convert {os.path.basename(json_file)}")
                 print(f"  Old: start={old_annotation.get('start_frame')}, end={old_annotation.get('end_frame')}")
-                print(f"  New: {len(new_annotation['instances'])} instances")
+                print(f"  New: {len(new_annotation['temporal_events'])} temporal_events")
                 if old_annotation.get('direction_labels'):
                     print(f"  Removing direction_labels: {old_annotation['direction_labels']}")
                 converted_count += 1
@@ -103,7 +110,7 @@ def main():
             
             print(f"CONVERTED: {os.path.basename(json_file)}")
             print(f"  Old: start={old_annotation.get('start_frame')}, end={old_annotation.get('end_frame')}")
-            print(f"  New: {len(new_annotation['instances'])} instances")
+            print(f"  New: {len(new_annotation['temporal_events'])} temporal_events")
             if old_annotation.get('direction_labels'):
                 print(f"  Removed direction_labels: {old_annotation['direction_labels']}")
             
