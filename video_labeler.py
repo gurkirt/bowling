@@ -56,6 +56,22 @@ def label_video(video_path, class_name):
         cv2.imshow("Label Video", display)
         return True
 
+    def add_instance(current_start, current_end, instances):
+        if current_start <= current_end:
+            instance = {
+                "start_frame": current_start,
+                "end_frame": current_end,
+                "middle_frame": (current_start + current_end) // 2,
+                "class": class_name
+            }
+            instances.append(instance)
+            print(f"Added instance {len(instances)}: frames {current_start}-{current_end} (middle: {instance['middle_frame']})")
+            current_start = None
+            current_end = None
+            print("Ready for next instance. Set start frame (S) and end frame (E).")
+        else:
+            print("Error: Start frame must be <= end frame. Fix frames or press 'N' again to skip.")
+
     print("Instructions:")
     print("  Right/Left arrow: Next/Prev frame")
     print("  S: Set start frame")
@@ -71,6 +87,7 @@ def label_video(video_path, class_name):
             break
         key = cv2.waitKey(0) & 0xFF
         if key == ord('q'):
+            add_instance(current_start, current_end, instances)  # Try to add current instance before quitting
             break
         elif key == ord('s'):
             current_start = current_frame
@@ -84,20 +101,7 @@ def label_video(video_path, class_name):
         elif key == ord('n'):
             # Move to next instance - auto-save current if both start and end are set
             if current_start is not None and current_end is not None:
-                if current_start <= current_end:
-                    instance = {
-                        "start_frame": current_start,
-                        "end_frame": current_end,
-                        "middle_frame": (current_start + current_end) // 2,
-                        "class": class_name
-                    }
-                    instances.append(instance)
-                    print(f"Added instance {len(instances)}: frames {current_start}-{current_end} (middle: {instance['middle_frame']})")
-                    current_start = None
-                    current_end = None
-                    print("Ready for next instance. Set start frame (S) and end frame (E).")
-                else:
-                    print("Error: Start frame must be <= end frame. Fix frames or press 'N' again to skip.")
+                add_instance(current_start, current_end, instances)
             else:
                 print("Cannot move to next instance: Set both start and end frames first")
         elif key == ord('a'):
@@ -277,7 +281,8 @@ def label_actions(args):
             with open(anno_path, 'r', encoding='utf-8') as f:
                 anno = json.load(f)
             # Check if start/end frame are valid
-            if anno.get('start_frame') is None or anno.get('end_frame') is None:
+            temporal_events = anno.get('temporal_events', [])
+            if not temporal_events or any('start_frame' not in ev or 'end_frame' not in ev for ev in temporal_events):
                 print(f"Annotation for {video_path} is incomplete. Relabeling...")
                 needs_label = True
             else:
