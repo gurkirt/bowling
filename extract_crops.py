@@ -19,7 +19,7 @@ def load_annotation(json_path):
         print(f"Error loading {json_path}: {e}")
         return None
 
-def extract_and_crop_frames(video_path, annotation, output_dir, top_crop=570, height_remain=1350):
+def extract_and_crop_frames(video_path: str, annotation, output_dir, top_crop=570, height_remain=1350):
     """Extract frames from video and create left/right crops with labels"""
     
     video_name = os.path.splitext(os.path.basename(video_path))[0]
