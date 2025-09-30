@@ -18,7 +18,7 @@ def read(frame_dir: Path) -> Iterator[Tuple[Frame, bool]]:
 
 def write(video_dir: Path, output_dir: Path, istest: bool) -> None:
     output_dir.mkdir(exist_ok=True)
-    for index, content in enumerate(extract(Path(video_dir), istest)):
+    for index, content in enumerate(_extract(Path(video_dir), istest)):
         video_path, frame, in_action =  content
         video_frames_dir = output_dir / video_path.stem
         video_frames_dir.mkdir(exist_ok=True)
@@ -26,29 +26,29 @@ def write(video_dir: Path, output_dir: Path, istest: bool) -> None:
         cv2.imwrite(str(framepath), frame)
 
 
-def extract(video_dir: Path, istest: bool) -> Iterator[Tuple[Path, Frame, bool]]:
-    for video in glob_videos(video_dir):
+def _extract(video_dir: Path, istest: bool) -> Iterator[Tuple[Path, Frame, bool]]:
+    for video in _glob_videos(video_dir):
         try:
-           is_in_action = is_in_action_maker(video)
+           is_in_action = _is_in_action_maker(video)
         except Exception as e:
             print(f"Warning: Skipping {video.name}: could not read annotation {e}")
             continue
 
-        for index, frame in enumerate(frames(video)):
+        for index, frame in enumerate(_frames(video)):
             yield video, frame, is_in_action(index)
         
         if istest:
             break
 
 
-def glob_videos(video_dir: Path) -> Iterator[Path]:
+def _glob_videos(video_dir: Path) -> Iterator[Path]:
     for ext in '*.MOV' , '*.mp4', '*.avi':
         paths = sorted(video_dir.glob(ext))
         print('Found {} videos with extension {}'.format(len(paths), ext))
         yield from paths
 
 
-def is_in_action_maker(video: Path) -> Callable[[int], bool]:
+def _is_in_action_maker(video: Path) -> Callable[[int], bool]:
     annotation = video.with_suffix('.json')
     with open(annotation) as f:
         events = json.load(f)['temporal_events']
@@ -57,7 +57,7 @@ def is_in_action_maker(video: Path) -> Callable[[int], bool]:
     return is_in_action
     
 
-def frames(video: Path) -> Iterator[Frame]:
+def _frames(video: Path) -> Iterator[Frame]:
     cap = cv2.VideoCapture(str(video))
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     print(f"Video {video.name}: {frame_count} frames")
