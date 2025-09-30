@@ -1,66 +1,56 @@
 # training_set offers the write() function to extract frames from videos and read() function to read the extracted frames.
 
 import argparse
-from typing import Callable, Dict, Iterator, List, Tuple, TypeAlias, Optional
+from typing import Callable, Iterator, Tuple, TypeAlias, Optional
 import numpy as np
 from pathlib import Path
 import json
 import cv2
+import shutil
 
 Frame: TypeAlias = np.ndarray 
 
 def read(frame_dir: Path) -> Iterator[Tuple[Frame, bool]]:
-    for frame_path in sorted(frame_dir.glob("*/*.jpg")):  
+    for frame_path in sorted(frame_dir.glob("*/*.jpg")):
         frame = cv2.imread(str(frame_path))
         in_action = frame_path.stem.lower().endswith('true')
         yield frame, in_action
 
 
 def write(video_dir: Path, output_dir: Path, istest: bool) -> None:
-    output_dir.mkdir(exist_ok=True)
-    for index, content in enumerate(_extract(Path(video_dir), istest)):
-        video_path, frame, in_action =  content
-        video_frames_dir = output_dir / video_path.stem
-        video_frames_dir.mkdir(exist_ok=True)
-        framepath = video_frames_dir / Path(f'frame_{index:05d}_{str(in_action).lower()}.jpg' )
-        cv2.imwrite(str(framepath), frame)
+    if output_dir.exists():
+        shutil.rmtree(output_dir)
+    output_dir.mkdir()
+    for index, (video_path, frame, in_action) in enumerate(_extract(Path(video_dir), istest)):
+        frames_dir = output_dir / video_path.stem
+        frames_dir.mkdir(exist_ok=True)
+        frame_path = frames_dir / Path(f'frame_{index:05d}_{str(in_action).lower()}.jpg' )
+        cv2.imwrite(str(frame_path), frame)
 
 
 def _extract(video_dir: Path, istest: bool) -> Iterator[Tuple[Path, Frame, bool]]:
-    for video in _glob_videos(video_dir):
-        try:
-           is_in_action = _is_in_action_maker(video)
-        except Exception as e:
-            print(f"Warning: Skipping {video.name}: could not read annotation {e}")
-            continue
+     for ext in '*.MOV' , '*.mp4', '*.avi':
+        for video in video_dir.glob(ext):
+           try:
+               with open(video.with_suffix('.json')) as f:
+                   events = json.load(f)['temporal_events']
+           except Exception as e:
+               print(f"Warning: Skipping {video.name}: could not read annotation {e}")
+               continue
 
-        for index, frame in enumerate(_frames(video)):
-            yield video, frame, is_in_action(index)
-        
-        if istest:
-            break
+           for i, frame in enumerate(_frames(video)):
+               in_action = any(e["start_frame"] - 2 <= i <= e['end_frame'] for e in events)
+               yield video, frame, in_action
 
+           if istest:
+               print("Test mode: processed a single video and exiting.")
+               break
 
-def _glob_videos(video_dir: Path) -> Iterator[Path]:
-    for ext in '*.MOV' , '*.mp4', '*.avi':
-        paths = sorted(video_dir.glob(ext))
-        print('Found {} videos with extension {}'.format(len(paths), ext))
-        yield from paths
-
-
-def _is_in_action_maker(video: Path) -> Callable[[int], bool]:
-    annotation = video.with_suffix('.json')
-    with open(annotation) as f:
-        events = json.load(f)['temporal_events']
-    def is_in_action(frame_index: int) -> bool:
-        return any(e["start_frame"] - 2 <= frame_index <= e['end_frame'] for e in events)
-    return is_in_action
-    
 
 def _frames(video: Path) -> Iterator[Frame]:
     cap = cv2.VideoCapture(str(video))
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"Video {video.name}: {frame_count} frames")
+    print(f"Extracting frames from {video.name}: {frame_count} frames")
     try:
       while True:
           ret, frame = cap.read()
