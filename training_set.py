@@ -118,13 +118,8 @@ if __name__ == '__main__':
                        help="If --test is set, then the frames of a single video is processed.")
     parser.add_argument("--summary", default=False, action='store_true',
                        help="When --summary is set, the script displays stats on the produced training set.")
-<<<<<<< Updated upstream
-    parser.add_argument("summary_dir", type=str, default=None,
+    parser.add_argument("--summary_dir", type=str, default=None,
                        help="The frames directory for the summary is the first positional arg.")
-
-=======
-    
->>>>>>> Stashed changes
 
     args = parser.parse_args()
     if args.summary:
@@ -132,4 +127,4 @@ if __name__ == '__main__':
             parser.error("When --summary is set, the frames directory must be provided as the first positional arg.")
         print(_summary(Path(args.summary_dir)))
     else:
-        write(Path(args.video_dir), Path(args.output_dir), args.test)
+        write(Path(args.video_dir), Path(args.output_dir), args.test)   
