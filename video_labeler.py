@@ -373,8 +373,8 @@ def main():
     parser.add_argument("--action_class", help="Action class name", default="bowling", choices=["bowling"])
     parser.add_argument("--box_class", help="Bounding box class name", default="bowler", choices=["bowler"])
     args = parser.parse_args()
-    # label_actions(args)
-    label_boxes(args)
+    label_actions(args)
+    # label_boxes(args)
 
 if __name__ == "__main__":
     main()
