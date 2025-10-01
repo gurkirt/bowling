@@ -24,7 +24,7 @@ def write(video_dir: Path, output_dir: Path, istest: bool) -> None:
     if output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir()
-    for index, (video_path, frame, in_action) in enumerate(_extract(Path(video_dir), istest)):
+    for index, (video_path, frame, in_action) in enumerate(_crop(_extract(Path(video_dir), istest))):
         frames_dir = output_dir / video_path.stem
         frames_dir.mkdir(exist_ok=True)
         frame_path = frames_dir / Path(f'frame_{index:05d}_{str(in_action).lower()}.jpg' )
@@ -64,6 +64,21 @@ def _extract(video_dir: Path, istest: bool) -> Iterator[Tuple[Path, Frame, bool]
                print("Test mode: processed a single video and exiting.")
                break
 
+def _crop(frames: Iterator[Tuple[Path, Frame, bool]]) -> Iterator[Tuple[Path, Frame, bool]]:
+    for p, f, b in frames:
+        h, w, _ = f.shape
+        top_offset = int(h * 0.32)
+        crop_h = h - top_offset
+        side = min(crop_h, w)
+        center_x = w // 2
+        center_y = top_offset + crop_h // 2
+        half_side = side // 2
+        left = max(center_x - half_side, 0)
+        right = left + side
+        top = max(center_y - half_side, top_offset)
+        bottom = top + side
+        yield p, f[top:bottom, left:right], b
+
 
 def _frames(video: Path) -> Iterator[Frame]:
     cap = cv2.VideoCapture(str(video))
@@ -93,6 +108,8 @@ def _summary(frame_dir: Path) -> str:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Extract the frames annotated with whether the baller is in balling action.")
+    parser.add_argument("--summary_dir", type=str, default=None,
+                       help="The frames directory for the summary is the first positional arg.")
     parser.add_argument("--video_dir", default="videos-aug31st", 
                        help="Directory containing video files and annotations")
     parser.add_argument("--output_dir", default="training_set", 
@@ -101,9 +118,13 @@ if __name__ == '__main__':
                        help="If --test is set, then the frames of a single video is processed.")
     parser.add_argument("--summary", default=False, action='store_true',
                        help="When --summary is set, the script displays stats on the produced training set.")
+<<<<<<< Updated upstream
     parser.add_argument("summary_dir", type=str, default=None,
                        help="The frames directory for the summary is the first positional arg.")
 
+=======
+    
+>>>>>>> Stashed changes
 
     args = parser.parse_args()
     if args.summary:
