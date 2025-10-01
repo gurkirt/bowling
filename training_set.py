@@ -108,8 +108,6 @@ def _summary(frame_dir: Path) -> str:
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Extract the frames annotated with whether the baller is in balling action.")
-    parser.add_argument("--summary_dir", type=str, default=None,
-                       help="The frames directory for the summary is the first positional arg.")
     parser.add_argument("--video_dir", default="videos-aug31st", 
                        help="Directory containing video files and annotations")
     parser.add_argument("--output_dir", default="training_set", 
