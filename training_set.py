@@ -15,79 +15,101 @@ import argparse
 import collections
 import cv2
 import json
+import os
 import numpy as np
 import random 
 import shutil
+import threading
+from queue import Queue
 
 Frame: TypeAlias = np.ndarray 
 
-def write(video_dir: Path, output_dir: Path, istest: bool) -> None:
-    """Extract frames from videos in video_dir, and save them to output_dir.
-    The filename of each frame includes whether the baller is in balling action.
-    The frames are randomly split into train and eval sets.
-    If istest is True, only the frames of a single video is processed.
-
-    Example output:
-
-    training_set/frames/
-             .../frames/IMG_8286
-             .../frames/IMG_8286/frame_00130_false.jpg
-             .../frames/IMG_8286/frame_00140_false.jpg
-             .../frames/IMG_8286/frame_00149_true.jpg
-             .../frames/IMG_8286/frame_00150_true.jpg
-             .../frames/IMG_8286/frame_00310_false.jpg
-    training_set/dataloader/
-             .../dataloader/train
-                        .../train/frame_00000.jpg -> training_set/frames/IMG_8286/frame_00130_false.jpg
-                        .../train/frame_00001.jpg -> training_set/frames/IMG_8286/frame_00140_false.jpg
-                        .../train/frame_00002.jpg -> training_set/frames/IMG_8286/frame_00150_true.jpg
-             .../dataloader/eval
-                        .../eval/frame_00000.jpg -> training_set/frames/IMG_8286/frame_00149_true.jpg
-                        .../eval/frame_00001.jpg -> training_set/frames/IMG_8286/frame_00310_false.jpg
-    """
-    frames_dir = output_dir / 'frames'
+def add_symlinks(output_dir: Path) -> None:
+    """Create train/eval splits by creating symlinks to frames."""
     train_dir = output_dir / 'dataloader' / 'train'
     eval_dir = output_dir / 'dataloader' / 'eval'
+    train_dir.mkdir(parents=True, exist_ok=True)
+    eval_dir.mkdir(parents=True, exist_ok=True)
+    
+    train_counter, eval_counter = 0, 0
+    for frame in (output_dir / 'frames').rglob('*.jpg'):
+        if random.choice([True, False]):
+            (train_dir / f'frame_{train_counter:05d}.jpg').symlink_to(frame)
+            train_counter += 1
+        else:
+            (eval_dir / f'frame_{eval_counter:05d}.jpg').symlink_to(frame)
+            eval_counter += 1
 
+def worker(queue: Queue, frames_dir: Path):
+    while True:
+        video = queue.get()
+        if video is None:
+            queue.task_done()
+            break
+        write_one(video, frames_dir)
+        queue.task_done()
+
+def write(output_dir: Path, istest: bool) -> None:
     if output_dir.exists():
         shutil.rmtree(output_dir)
+    frames_dir = output_dir / 'frames'
     frames_dir.mkdir(parents=True)
-    train_dir.mkdir(parents=True)
-    eval_dir.mkdir()
-    eval_counter, train_counter = 0,0
-    for i, (framefilename, frame, in_action) in enumerate(_extract(Path(video_dir), istest)):
-        if not in_action and  i % 10 != 0:
+    video_queue = Queue()
+    num_threads = os.cpu_count() 
+    threads = []
+    for _ in range(num_threads):
+        t = threading.Thread(target=worker, args=(video_queue, frames_dir))
+        t.start()
+        threads.append(t)
+    video_count = 0
+    for ext in ('*.MOV', '*.mp4', '*.avi'):
+        for video in Path(args.video_dir).glob(ext):
+            video_queue.put(video)
+            video_count += 1
+            if istest:
+                print("Test mode: processed a single video and exiting.")
+                break
+        if istest and video_count > 0:
+            break
+    for _ in threads:
+        video_queue.put(None)
+    video_queue.join()
+    for t in threads:
+        t.join()
+
+# def write(output_dir:Path, istest: bool) -> None:
+#     if output_dir.exists():
+#         shutil.rmtree(output_dir)
+#     frames_dir = output_dir / 'frames'
+#     frames_dir.mkdir(parents=True)
+#     for ext in ('*.MOV', '*.mp4', '*.avi'):
+#         for video in Path(args.video_dir).glob(ext):
+#             write_one(video, frames_dir)
+#             if istest:
+#                 print("Test mode: processed a single video and exiting.")
+#                 return
+
+def write_one(video: Path, frames_dir: Path) -> None:
+    """
+    Extract frames from videos in video_dir, save to frames_dir.
+    Only 10% of 'not in action' frames are saved.
+    """
+    try:
+        with open(video.with_suffix('.json')) as f:
+            events = json.load(f)['temporal_events']
+    except Exception as e:
+        print(f"Warning: Skipping {video.name}: could not read annotation {e}")
+        return
+
+    for i, frame in enumerate(_frames(video)):
+        in_action = any(e["start_frame"] - 2 <= i <= e['end_frame'] for e in events)
+        if not in_action and random.randint(0, 10) % 10 != 0:
             # Save only 10% of the frames "not in action".
             continue
+        framefilename = Path(video.stem) / f'frame_{i:05d}_{str(in_action).lower()}.jpg'
         framepath = frames_dir / framefilename
         framepath.parent.mkdir(exist_ok=True, parents=True)
         cv2.imwrite(str(framepath), _crop(frame))
-        if random.choice([True, False]):
-            (train_dir / f'frame_{train_counter:05d}.jpg').symlink_to(framepath)
-            train_counter += 1
-        else:
-            (eval_dir / f'frame_{eval_counter:05d}.jpg').symlink_to(framepath)
-            eval_counter += 1
-        
-
-
-def _extract(video_dir: Path, istest: bool) -> Iterator[Tuple[Path, Frame, bool]]:
-     for ext in '*.MOV' , '*.mp4', '*.avi':
-        for video in video_dir.glob(ext):
-           try:
-               with open(video.with_suffix('.json')) as f:
-                   events = json.load(f)['temporal_events']
-           except Exception as e:
-               print(f"Warning: Skipping {video.name}: could not read annotation {e}")
-               continue
-
-           for i, frame in enumerate(_frames(video)):
-               in_action = any(e["start_frame"] - 2 <= i <= e['end_frame'] for e in events)
-               yield Path(video.stem) / f'frame_{i:05d}_{str(in_action).lower()}.jpg', frame, in_action
-
-           if istest:
-               print("Test mode: processed a single video and exiting.")
-               break
 
 
 def _crop(frame: Frame) -> Frame:
@@ -151,4 +173,5 @@ if __name__ == '__main__':
             parser.error("When --summary is set, the frames directory must be provided as the first positional arg.")
         print(_summary(Path(args.summary_dir)))
     else:
-        write(Path(args.video_dir), Path(args.output_dir), args.test)   
+        write(Path(args.output_dir), args.test)
+        add_symlinks(Path(args.output_dir))
