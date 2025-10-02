@@ -32,13 +32,15 @@ def add_symlinks(output_dir: Path) -> None:
     eval_dir.mkdir(parents=True, exist_ok=True)
     
     train_counter, eval_counter = 0, 0
-    for frame in (output_dir / 'frames').rglob('*.jpg'):
-        if random.choice([True, False]):
-            (train_dir / f'frame_{train_counter:05d}.jpg').symlink_to(frame)
-            train_counter += 1
+    for i, video in enumerate((output_dir / 'frames').iterdir()):
+        if i % 10:
+            for frame in video.glob('*.jpg'):
+                (train_dir / f'frame_{train_counter:05d}.jpg').symlink_to(frame)
+                train_counter += 1
         else:
-            (eval_dir / f'frame_{eval_counter:05d}.jpg').symlink_to(frame)
-            eval_counter += 1
+            for frame in video.glob('*.jpg'):
+               (eval_dir / f'frame_{eval_counter:05d}.jpg').symlink_to(frame)
+               eval_counter += 1
 
 def worker(queue: Queue, frames_dir: Path):
     while True:
