@@ -1,0 +1,12 @@
+{
+  "video": "IMG_8511.MOV",
+  "total_frames": 166,
+  "temporal_events": [
+    {
+      "start_frame": 74,
+      "end_frame": 83,
+      "middle_frame": 78,
+      "class": "bowling"
+    }
+  ]
+}
