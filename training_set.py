@@ -24,26 +24,13 @@ def write(video_dir: Path, output_dir: Path, istest: bool) -> None:
     if output_dir.exists():
         shutil.rmtree(output_dir)
     output_dir.mkdir()
-    for index, (video_path, frame, in_action) in enumerate(_crop(_extract(Path(video_dir), istest))):
+    for index, (video_path, frame, in_action) in enumerate(_extract(Path(video_dir), istest)):
         frames_dir = output_dir / video_path.stem
         frames_dir.mkdir(exist_ok=True)
         frame_path = frames_dir / Path(f'frame_{index:05d}_{str(in_action).lower()}.jpg' )
-        if in_action:
-          cv2.imwrite(str(frame_path), frame)
-        elif index % 10 == 0:
-          # Save only 10% of the frames not in action.
-          # this should still save 2X more frames not in action than in action.
-          cv2.imwrite(str(frame_path), frame)
-
-
-def read(frame_dir: Path) -> Iterator[Tuple[Path, Frame, bool]]:
-    for frame_path, in_action in _read_paths(frame_dir):
-        yield frame_path, cv2.imread(str(frame_path)), in_action
-
-
-def _read_paths(frame_dir: Path) -> Iterator[Tuple[Path, bool]]:
-    for frame_path in frame_dir.glob("*/*.jpg"):
-        yield frame_path, frame_path.stem.lower().endswith('true')
+        if in_action or index % 10 == 0:
+          # Save only 10% of the frames "not in action".
+          cv2.imwrite(str(frame_path), _crop(frame))
 
 
 def _extract(video_dir: Path, istest: bool) -> Iterator[Tuple[Path, Frame, bool]]:
@@ -64,20 +51,18 @@ def _extract(video_dir: Path, istest: bool) -> Iterator[Tuple[Path, Frame, bool]
                print("Test mode: processed a single video and exiting.")
                break
 
-def _crop(frames: Iterator[Tuple[Path, Frame, bool]]) -> Iterator[Tuple[Path, Frame, bool]]:
-    for p, f, b in frames:
-        h, w, _ = f.shape
-        top_offset = int(h * 0.32)
-        crop_h = h - top_offset
-        side = min(crop_h, w)
-        center_x = w // 2
-        center_y = top_offset + crop_h // 2
-        half_side = side // 2
-        left = max(center_x - half_side, 0)
-        right = left + side
-        top = max(center_y - half_side, top_offset)
-        bottom = top + side
-        yield p, f[top:bottom, left:right], b
+def _crop(frame: Frame) -> Frame:
+    h, w, _ = frame.shape
+    top_offset = int(h * 0.32)
+    new_h = h - top_offset
+    side = min(new_h, w)
+    center_x = w // 2
+    center_y = top_offset + new_h // 2
+    left = max(center_x - side // 2, 0)
+    right = left + side
+    top = max(center_y - side // 2, top_offset)
+    bottom = top + side
+    return frame[top:bottom, left:right]
 
 
 def _frames(video: Path) -> Iterator[Frame]:
@@ -96,8 +81,9 @@ def _frames(video: Path) -> Iterator[Frame]:
 
 def _summary(frame_dir: Path) -> str:
     frame_counts = collections.defaultdict(collections.Counter)
-    for path, in_action in _read_paths(frame_dir):
-        frame_counts[path.parent.name][in_action] += 1
+    for frame_path in frame_dir.glob("*/*.jpg"):
+        in_action= frame_path.stem.lower().endswith('true')
+        frame_counts[frame_path.parent.name][in_action] += 1
     total, in_action, not_in_action = 0, 0, 0
     for counts in frame_counts.values():
         in_action += counts[True]
