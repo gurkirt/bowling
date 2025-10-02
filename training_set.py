@@ -61,7 +61,6 @@ def write(output_dir: Path, video_dir: Path, istest: bool) -> None:
         t = threading.Thread(target=worker, args=(video_queue, frames_dir))
         t.start()
         threads.append(t)
-    video_count = 0
     for ext in ('*.MOV', '*.mp4', '*.avi'):
         for video in Path(video_dir).glob(ext):
             video_queue.put(video)
