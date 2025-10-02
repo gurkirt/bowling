@@ -8,29 +8,67 @@
 # $ python3 training_set.py --summary /mnt/chromeos/removable/usbdisk/training_set/
 # Total frames: 22474, In action: 5% (1263), Not in action: 94% (21211).
 
+from pathlib import Path
+from typing import Iterator, Tuple, TypeAlias
+
 import argparse
 import collections
-from typing import Callable, Iterator, Tuple, TypeAlias, Optional
-import numpy as np
-from pathlib import Path
-import json
 import cv2
+import json
+import numpy as np
+import random 
 import shutil
 
 Frame: TypeAlias = np.ndarray 
 
-
 def write(video_dir: Path, output_dir: Path, istest: bool) -> None:
+    """Extract frames from videos in video_dir, and save them to output_dir.
+    The filename of each frame includes whether the baller is in balling action.
+    The frames are randomly split into train and eval sets.
+    If istest is True, only the frames of a single video is processed.
+
+    Example output:
+
+    training_set/frames/
+             .../frames/IMG_8286
+             .../frames/IMG_8286/frame_00130_false.jpg
+             .../frames/IMG_8286/frame_00140_false.jpg
+             .../frames/IMG_8286/frame_00149_true.jpg
+             .../frames/IMG_8286/frame_00150_true.jpg
+             .../frames/IMG_8286/frame_00310_false.jpg
+    training_set/dataloader/
+             .../dataloader/train
+                        .../train/frame_00000.jpg -> training_set/frames/IMG_8286/frame_00130_false.jpg
+                        .../train/frame_00001.jpg -> training_set/frames/IMG_8286/frame_00140_false.jpg
+                        .../train/frame_00002.jpg -> training_set/frames/IMG_8286/frame_00150_true.jpg
+             .../dataloader/eval
+                        .../eval/frame_00000.jpg -> training_set/frames/IMG_8286/frame_00149_true.jpg
+                        .../eval/frame_00001.jpg -> training_set/frames/IMG_8286/frame_00310_false.jpg
+    """
+    frames_dir = output_dir / 'frames'
+    train_dir = output_dir / 'dataloader' / 'train'
+    eval_dir = output_dir / 'dataloader' / 'eval'
+
     if output_dir.exists():
         shutil.rmtree(output_dir)
-    output_dir.mkdir()
-    for index, (video_path, frame, in_action) in enumerate(_extract(Path(video_dir), istest)):
-        frames_dir = output_dir / video_path.stem
-        frames_dir.mkdir(exist_ok=True)
-        frame_path = frames_dir / Path(f'frame_{index:05d}_{str(in_action).lower()}.jpg' )
-        if in_action or index % 10 == 0:
-          # Save only 10% of the frames "not in action".
-          cv2.imwrite(str(frame_path), _crop(frame))
+    frames_dir.mkdir(parents=True)
+    train_dir.mkdir(parents=True)
+    eval_dir.mkdir()
+    eval_counter, train_counter = 0,0
+    for i, (framefilename, frame, in_action) in enumerate(_extract(Path(video_dir), istest)):
+        if not in_action and  i % 10 != 0:
+            # Save only 10% of the frames "not in action".
+            continue
+        framepath = frames_dir / framefilename
+        framepath.parent.mkdir(exist_ok=True, parents=True)
+        cv2.imwrite(str(framepath), _crop(frame))
+        if random.choice([True, False]):
+            (train_dir / f'frame_{train_counter:05d}.jpg').symlink_to(framepath)
+            train_counter += 1
+        else:
+            (eval_dir / f'frame_{eval_counter:05d}.jpg').symlink_to(framepath)
+            eval_counter += 1
+        
 
 
 def _extract(video_dir: Path, istest: bool) -> Iterator[Tuple[Path, Frame, bool]]:
@@ -45,13 +83,15 @@ def _extract(video_dir: Path, istest: bool) -> Iterator[Tuple[Path, Frame, bool]
 
            for i, frame in enumerate(_frames(video)):
                in_action = any(e["start_frame"] - 2 <= i <= e['end_frame'] for e in events)
-               yield video, frame, in_action
+               yield Path(video.stem) / f'frame_{i:05d}_{str(in_action).lower()}.jpg', frame, in_action
 
            if istest:
                print("Test mode: processed a single video and exiting.")
                break
 
+
 def _crop(frame: Frame) -> Frame:
+    """Remove 32% from the top vertically, and crop the frame to a square centered horizontally."""
     h, w, _ = frame.shape
     top_offset = int(h * 0.32)
     new_h = h - top_offset
