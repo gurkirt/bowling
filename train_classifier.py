@@ -144,7 +144,7 @@ def load_dataset(labels_file, data_dir, val_videos=12, random_state=42):
     
     return (X_train, y_train), (X_val, y_val)
 
-def get_transforms(input_height=320, input_width=128, augment=True):
+def get_transforms(input_height=256, input_width=256, augment=True):
     """Get data transforms for rectangular images"""
     if augment:
         train_transform = transforms.Compose([
