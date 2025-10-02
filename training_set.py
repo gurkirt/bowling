@@ -49,7 +49,7 @@ def worker(queue: Queue, frames_dir: Path):
         write_one(video, frames_dir)
         queue.task_done()
 
-def write(output_dir: Path, istest: bool) -> None:
+def write(output_dir: Path, video_dir: Path, istest: bool) -> None:
     if output_dir.exists():
         shutil.rmtree(output_dir)
     frames_dir = output_dir / 'frames'
@@ -63,31 +63,17 @@ def write(output_dir: Path, istest: bool) -> None:
         threads.append(t)
     video_count = 0
     for ext in ('*.MOV', '*.mp4', '*.avi'):
-        for video in Path(args.video_dir).glob(ext):
+        for video in Path(video_dir).glob(ext):
             video_queue.put(video)
-            video_count += 1
             if istest:
-                print("Test mode: processed a single video and exiting.")
+                print("test mode: processing a single video and exiting")
                 break
-        if istest and video_count > 0:
-            break
     for _ in threads:
         video_queue.put(None)
     video_queue.join()
     for t in threads:
         t.join()
 
-# def write(output_dir:Path, istest: bool) -> None:
-#     if output_dir.exists():
-#         shutil.rmtree(output_dir)
-#     frames_dir = output_dir / 'frames'
-#     frames_dir.mkdir(parents=True)
-#     for ext in ('*.MOV', '*.mp4', '*.avi'):
-#         for video in Path(args.video_dir).glob(ext):
-#             write_one(video, frames_dir)
-#             if istest:
-#                 print("Test mode: processed a single video and exiting.")
-#                 return
 
 def write_one(video: Path, frames_dir: Path) -> None:
     """
@@ -130,7 +116,7 @@ def _crop(frame: Frame) -> Frame:
 def _frames(video: Path) -> Iterator[Frame]:
     cap = cv2.VideoCapture(str(video))
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"Extracting frames from {video.name}: {frame_count} frames")
+    print(f"extracting frames from {video.name}: {frame_count} frames")
     try:
       while True:
           ret, frame = cap.read()
@@ -153,8 +139,7 @@ def _summary(frame_dir: Path) -> str:
         total += counts[False] + counts[True]
     return f"Total frames: {total}, In action: {int(in_action*100/total)}% ({in_action}), Not in action: {int(100 *not_in_action/total)}% ({not_in_action})."
 
-
-if __name__ == '__main__':
+def main():
     parser = argparse.ArgumentParser(description="Extract the frames annotated with whether the baller is in balling action.")
     parser.add_argument("--video_dir", default="videos-aug31st", 
                        help="Directory containing video files and annotations")
@@ -172,6 +157,10 @@ if __name__ == '__main__':
         if args.summary_dir is None:
             parser.error("When --summary is set, the frames directory must be provided as the first positional arg.")
         print(_summary(Path(args.summary_dir)))
-    else:
-        write(Path(args.output_dir), args.test)
-        add_symlinks(Path(args.output_dir))
+        return
+
+    write(Path(args.output_dir), Path(args.video_dir), args.test)
+    add_symlinks(Path(args.output_dir))
+
+if __name__ == '__main__':
+    main()
