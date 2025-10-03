@@ -25,14 +25,15 @@ from queue import Queue
 Frame: TypeAlias = np.ndarray 
 
 def add_symlinks(output_dir: Path) -> None:
-    """Create train/eval splits by creating symlinks to frames."""
+    """Create train/val splits by creating symlinks to frames."""
     for fold in range(10):
         train_dir = output_dir / 'dataloader' / str(fold) / 'train'
-        eval_dir = output_dir / 'dataloader' / str(fold)/ 'eval'
+        val_dir = output_dir / 'dataloader' / str(fold)/ 'val'
+        
         train_dir.mkdir(parents=True, exist_ok=True)
-        eval_dir.mkdir(parents=True, exist_ok=True)
+        val_dir.mkdir(parents=True, exist_ok=True)
 
-        train_counter, eval_counter = 0, 0
+        train_counter, val_counter = 0, 0
         for i, video in enumerate((output_dir / 'frames').iterdir()):
             if i + fold % 10:
                 for frame in video.glob('*.jpg'):
@@ -40,8 +41,8 @@ def add_symlinks(output_dir: Path) -> None:
                     train_counter += 1
             else:
                 for frame in video.glob('*.jpg'):
-                   (eval_dir / f'frame_{eval_counter:05d}.jpg').symlink_to(frame)
-                   eval_counter += 1
+                   (val_dir / f'frame_{val_counter:05d}.jpg').symlink_to(frame)
+                   val_counter += 1
 
 
 

@@ -81,68 +81,12 @@ class BowlingDataset(Dataset):
         label = torch.tensor(self.labels[idx], dtype=torch.long)
         return image, label
 
-def load_dataset(labels_file, data_dir, val_videos=12, random_state=42):
-    """Load and split the dataset based on videos"""
-    print(f"Loading dataset from {labels_file}")
-    
-    # Read labels file and group by video
-    video_data = {}
-    with open(labels_file, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                parts = line.split(',')
-                if len(parts) == 3:
-                    img_path, action_label, side = parts
-                    # Extract video name from path (e.g., "IMG_8286/IMG_8286_frame_000001_left.jpg" -> "IMG_8286")
-                    video_name = img_path.split('/')[0] if '/' in img_path else img_path.split('\\')[0]
-                    
-                    if video_name not in video_data:
-                        video_data[video_name] = []
-                    
-                    video_data[video_name].append({
-                        'image_path': img_path,
-                        'label': int(action_label),
-                        'side': side
-                    })
-    
-    if not video_data:
-        raise ValueError("No valid data found in labels file")
-    
-    # Sort videos by name and split
-    video_names = sorted(video_data.keys())
-    train_videos = video_names[:-val_videos]
-    val_videos_list = video_names[-val_videos:]
-    
-    print(f"Total videos: {len(video_names)}")
-    print(f"Train videos: {len(train_videos)} ({train_videos[:3]}...{train_videos[-3:]})")
-    print(f"Val videos: {len(val_videos_list)} ({val_videos_list})")
-    
-    # Separate train and validation data
-    train_data = []
-    val_data = []
-    
-    for video_name in train_videos:
-        train_data.extend(video_data[video_name])
-    
-    for video_name in val_videos_list:
-        val_data.extend(video_data[video_name])
-    
-    # Convert to lists
-    X_train = [item['image_path'] for item in train_data]
-    y_train = [item['label'] for item in train_data]
-    X_val = [item['image_path'] for item in val_data]
-    y_val = [item['label'] for item in val_data]
-    
-    # Print statistics
-    train_pos = sum(y_train)
-    val_pos = sum(y_val)
-    
-    print(f"\nDataset Statistics:")
-    print(f"Train: {len(X_train)} samples, positive: {train_pos} ({train_pos/len(X_train)*100:.1f}%)")
-    print(f"Val: {len(X_val)} samples, positive: {val_pos} ({val_pos/len(X_val)*100:.1f}%)")
-    
-    return (X_train, y_train), (X_val, y_val)
+def XFV(fold_dir: Path) -> tuple[tuple[Path, bool], tuple[Path, bool]]:
+    xpaths, ys = [], []
+    for s in 'train', 'val':
+        xpaths.append([link.resolve() for link in (fold_dir / s).iterdir()])
+        ys.append([p.stem.endswith('True') for p in xpaths[-1]])
+    return (xpaths[0], ys[0]), (xpaths[1], ys[1])
 
 def get_transforms(input_height=256, input_width=256, augment=True):
     """Get data transforms for rectangular images"""
@@ -421,8 +365,7 @@ def main():
     parser = argparse.ArgumentParser(description='Train image classification model with timm')
     
     # Data arguments
-    parser.add_argument('--data_dir', default='crops_dataset', help='Dataset directory')
-    parser.add_argument('--labels_file', default='crops_dataset/labels.txt', help='Labels file path')
+    parser.add_argument('--data_dir', default='training_set/dataloader/0', help='Train and validation frames directory')
     parser.add_argument('--output_dir', default='trainings', help='Output directory')
     
     # Model arguments
@@ -517,9 +460,7 @@ def main():
         print(f"Run 'tensorboard --logdir {log_dir}' to view logs")
     
     # Load dataset
-    (X_train, y_train), (X_val, y_val) = load_dataset(
-        args.labels_file, args.data_dir, args.val_videos, args.seed
-    )
+    (X_train, y_train), (X_val, y_val) = load_dataset(args.data_dir, args.val_videos, args.seed)
     
     # Calculate class weights for balancing
     class_counts = np.bincount(y_train)
