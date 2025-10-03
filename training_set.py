@@ -43,36 +43,35 @@ def add_symlinks(output_dir: Path) -> None:
                    (eval_dir / f'frame_{eval_counter:05d}.jpg').symlink_to(frame)
                    eval_counter += 1
 
-def worker(queue: Queue, frames_dir: Path):
-    while True:
-        video = queue.get()
-        if video is None:
-            queue.task_done()
-            break
-        write_one(video, frames_dir)
-        queue.task_done()
+
 
 def write(output_dir: Path, video_dir: Path, istest: bool) -> None:
     if output_dir.exists():
         shutil.rmtree(output_dir)
     frames_dir = output_dir / 'frames'
     frames_dir.mkdir(parents=True)
-    video_queue = Queue()
-    num_threads = os.cpu_count() 
+    queue = Queue()
+
+    def worker():
+        while (video := queue.get()) is not None:
+            write_one(video, frames_dir)
+            queue.task_done()
+        queue.task_done()
+
     threads = []
-    for _ in range(num_threads):
-        t = threading.Thread(target=worker, args=(video_queue, frames_dir))
+    for _ in range(os.cpu_count() ):
+        t = threading.Thread(target=worker)
         t.start()
         threads.append(t)
     for ext in ('*.MOV', '*.mp4', '*.avi'):
         for video in Path(video_dir).glob(ext):
-            video_queue.put(video)
+            queue.put(video)
             if istest:
                 print("test mode: processing a single video and exiting")
                 break
     for _ in threads:
-        video_queue.put(None)
-    video_queue.join()
+        queue.put(None)
+    queue.join()
     for t in threads:
         t.join()
 
