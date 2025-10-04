@@ -3,6 +3,7 @@
 train_classifier.py - Train a PyTorch image classification model using timm
 """
 
+from enum import Enum
 import os
 import argparse
 import random
@@ -55,20 +56,26 @@ class FocalLoss(nn.Module):
         else:
             return focal_loss
 
+class Mode(Enum):
+    TRAIN = "train"
+    VAL = "val"
+
+
 class BowlingDataset(Dataset):
-    def __init__(self, image_paths, labels, transform=None, root_dir=""):
-        self.image_paths = image_paths
-        self.labels = labels
+    def __init__(self, fold: int, root_dir: Path, mode: Mode, transform):
+        self.links_dir : Path = root_dir / str(fold) / mode.value
+        # torchvision.transforms.Compose()
         self.transform = transform
-        self.root_dir = root_dir
     
     def __len__(self):
-        return len(self.image_paths)
+        return len(list(self.links_dir.glob("*.jpg")))
     
     def __getitem__(self, idx):
-        img_path = os.path.join(self.root_dir, self.image_paths[idx])
+        img_path = (self.links_dir / f'frame_{idx:05d}.jpg').resolve()
+        label = torch.tensor(img_path.stem.endswith('true'), dtype=torch.long)
         
         try:
+            # 
             image = Image.open(img_path).convert('RGB')
         except Exception as e:
             print(f"Error loading image {img_path}: {e}")
@@ -78,7 +85,6 @@ class BowlingDataset(Dataset):
         if self.transform:
             image = self.transform(image)
         
-        label = torch.tensor(self.labels[idx], dtype=torch.long)
         return image, label
 
 def XFV(fold_dir: Path) -> tuple[tuple[Path, bool], tuple[Path, bool]]:
@@ -88,7 +94,7 @@ def XFV(fold_dir: Path) -> tuple[tuple[Path, bool], tuple[Path, bool]]:
         ys.append([p.stem.endswith('True') for p in xpaths[-1]])
     return (xpaths[0], ys[0]), (xpaths[1], ys[1])
 
-def get_transforms(input_height=256, input_width=256, augment=True):
+def get_transforms(input_height=256, input_width=256, augment=True) -> tuple[transforms.Compose, transforms.Compose]:
     """Get data transforms for rectangular images"""
     if augment:
         train_transform = transforms.Compose([
@@ -388,7 +394,7 @@ def main():
     parser.add_argument('--augment', action='store_true', default=True, help='Use data augmentation')
     
     # Class balancing arguments
-    parser.add_argument('--class_balance', choices=['none', 'weights', 'sampling', 'focal'], default='weights', 
+    parser.add_argument('--class_balance', choices=['none', 'focal'], default='none', 
                        help='Class balancing method: none, weights (weighted loss), sampling (weighted sampler), focal (focal loss)')
     parser.add_argument('--focal_alpha', type=float, default=0.25, help='Focal loss alpha parameter')
     parser.add_argument('--focal_gamma', type=float, default=2.0, help='Focal loss gamma parameter')
@@ -458,51 +464,20 @@ def main():
         writer = SummaryWriter(log_dir=log_dir)
         print(f"TensorBoard logging to: {log_dir}")
         print(f"Run 'tensorboard --logdir {log_dir}' to view logs")
-    
-    # Load dataset
-    (X_train, y_train), (X_val, y_val) = load_dataset(args.data_dir, args.val_videos, args.seed)
-    
-    # Calculate class weights for balancing
-    class_counts = np.bincount(y_train)
-    total_samples = len(y_train)
-    
-    print(f"\nClass distribution in training set:")
-    print(f"Class 0 (No Action): {class_counts[0]} samples ({class_counts[0]/total_samples*100:.1f}%)")
-    print(f"Class 1 (Action): {class_counts[1]} samples ({class_counts[1]/total_samples*100:.1f}%)")
-    print(f"Imbalance ratio: {class_counts[0]/class_counts[1]:.1f}:1")
-    
-    # Calculate class weights (inverse frequency)
-    class_weights = total_samples / (len(class_counts) * class_counts)
-    class_weights_tensor = torch.FloatTensor(class_weights)
-    
-    print(f"Class weights: {class_weights}")
-    print(f"Using class balancing method: {args.class_balance}")
-    
+                
     # Get transforms
     train_transform, val_transform = get_transforms(args.input_height, args.input_width, args.augment)
     
     # Create datasets
-    train_dataset = BowlingDataset(X_train, y_train, train_transform, args.data_dir)
-    val_dataset = BowlingDataset(X_val, y_val, val_transform, args.data_dir)
-    
-    # Create weighted sampler for class balancing
-    train_sampler = None
-    if args.class_balance == 'sampling':
-        # Calculate sample weights for weighted random sampling
-        sample_weights = [class_weights[label] for label in y_train]
-        train_sampler = WeightedRandomSampler(
-            weights=sample_weights,
-            num_samples=len(sample_weights),
-            replacement=True
-        )
-        print(f"Using WeightedRandomSampler for class balancing")
-    
+    train_dataset = BowlingDataset(args.data_dir, 0, Mode.TRAIN, train_transform)
+    val_dataset = BowlingDataset(args.data_dir, 0, Mode.VAL, val_transform)
+        
     # Create data loaders
     train_loader = DataLoader(
         train_dataset, 
         batch_size=args.batch_size, 
-        shuffle=(train_sampler is None),  # Don't shuffle if using sampler
-        sampler=train_sampler,
+        shuffle=(True),  # Don't shuffle if using sampler
+        sampler=None, # remove or re-implement
         num_workers=args.num_workers, 
         pin_memory=True
     )
@@ -544,7 +519,7 @@ def main():
             writer.add_graph(model, sample_batch)
         except Exception as e:
             print(f"Could not log model graph: {e}")
-    
+
     # Loss function with class balancing
     if args.class_balance == 'focal':
         criterion = FocalLoss(alpha=args.focal_alpha, gamma=args.focal_gamma)
