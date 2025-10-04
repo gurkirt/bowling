@@ -369,7 +369,7 @@ def label_boxes(args):
 def main():
 
     parser = argparse.ArgumentParser(description="Label start/end frames for actions in videos.")
-    parser.add_argument("--video_dir", help="Directory containing video files", default="videos-sept7th")
+    parser.add_argument("--video_dir", help="Directory containing video files", default="videos")
     parser.add_argument("--action_class", help="Action class name", default="bowling", choices=["bowling"])
     parser.add_argument("--box_class", help="Bounding box class name", default="bowler", choices=["bowler"])
     args = parser.parse_args()
