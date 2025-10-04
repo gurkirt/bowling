@@ -1,0 +1,23 @@
+{
+  "video": "IMG_8393.MOV",
+  "total_frames": 592,
+  "temporal_events": [
+    {
+      "start_frame": 204,
+      "end_frame": 215,
+      "middle_frame": 209,
+      "class": "bowling"
+    }
+  ],
+  "bounding_boxes": {
+    "209": [
+      {
+        "x1": 653,
+        "y1": 780,
+        "x2": 1070,
+        "y2": 1805,
+        "class": "bowler"
+      }
+    ]
+  }
+}
