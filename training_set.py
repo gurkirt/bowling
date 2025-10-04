@@ -34,14 +34,15 @@ def add_symlinks(output_dir: Path) -> None:
         val_dir.mkdir(parents=True, exist_ok=True)
 
         train_counter, val_counter = 0, 0
+        num_videos = len(list((output_dir / 'frames').iterdir()))
         for i, video in enumerate((output_dir / 'frames').iterdir()):
-            if i + fold % 10:
+            if 10*i//num_videos != fold:
                 for frame in video.glob('*.jpg'):
-                    (train_dir / f'frame_{train_counter:05d}.jpg').symlink_to(frame)
+                    (train_dir / f'frame_{train_counter:05d}.jpg').symlink_to(frame.absolute())
                     train_counter += 1
             else:
                 for frame in video.glob('*.jpg'):
-                   (val_dir / f'frame_{val_counter:05d}.jpg').symlink_to(frame)
+                   (val_dir / f'frame_{val_counter:05d}.jpg').symlink_to(frame.absolute())
                    val_counter += 1
 
 
@@ -143,7 +144,7 @@ def _summary(frame_dir: Path) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Extract the frames annotated with whether the baller is in balling action.")
-    parser.add_argument("--video_dir", default="videos-aug31st", 
+    parser.add_argument("--video_dir", default="videos", 
                        help="Directory containing video files and annotations")
     parser.add_argument("--output_dir", default="training_set", 
                        help="Directory to save the extracted frames. The filename includes whether the baller is in balling action.")
