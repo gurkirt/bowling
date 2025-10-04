@@ -62,9 +62,9 @@ class Mode(Enum):
 
 
 class BowlingDataset(Dataset):
-    def __init__(self, fold: int, root_dir: Path, mode: Mode, transform):
-        self.links_dir : Path = root_dir / str(fold) / mode.value
-        # torchvision.transforms.Compose()
+    def __init__(self, root_dir: Path, fold: int, mode: Mode, transform):
+        print(f"Initializing dataset: {mode.value} for fold {fold} from {root_dir}")
+        self.links_dir: Path = root_dir / str(fold) / mode.value
         self.transform = transform
     
     def __len__(self):
@@ -73,15 +73,11 @@ class BowlingDataset(Dataset):
     def __getitem__(self, idx):
         img_path = (self.links_dir / f'frame_{idx:05d}.jpg').resolve()
         label = torch.tensor(img_path.stem.endswith('true'), dtype=torch.long)
-        
         try:
-            # 
             image = Image.open(img_path).convert('RGB')
         except Exception as e:
             print(f"Error loading image {img_path}: {e}")
-            # Return a black image as fallback with rectangular dimensions
-            image = Image.new('RGB', (128, 320), (0, 0, 0))
-        
+            raise 
         if self.transform:
             image = self.transform(image)
         
@@ -371,8 +367,10 @@ def main():
     parser = argparse.ArgumentParser(description='Train image classification model with timm')
     
     # Data arguments
-    parser.add_argument('--data_dir', default='training_set/dataloader/0', help='Train and validation frames directory')
+    parser.add_argument('--data_dir', default='training_set/dataloader', help='Train and validation frames directory')
+    parser.add_argument('--fold', type=int, default=0, help='Fold number for cross-validation')
     parser.add_argument('--output_dir', default='trainings', help='Output directory')
+
     
     # Model arguments
     parser.add_argument('--model_name', default='efficientnet_b0', help='timm model name')
@@ -429,7 +427,7 @@ def main():
     print(f"Using device: {device}")
     
     # Create experiment name
-    exp_name = f"{args.model_name}_bs{args.batch_size}_lr{args.lr:.0e}_ep{args.epochs}_{args.optimizer}_{args.scheduler}"
+    exp_name = f"f{args.fold}_{args.model_name}_bs{args.batch_size}_lr{args.lr:.0e}_ep{args.epochs}_{args.optimizer}_{args.scheduler}"
     if args.weight_decay != 1e-4:
         exp_name += f"_wd{args.weight_decay:.0e}"
     if args.augment:
@@ -469,9 +467,9 @@ def main():
     train_transform, val_transform = get_transforms(args.input_height, args.input_width, args.augment)
     
     # Create datasets
-    train_dataset = BowlingDataset(args.data_dir, 0, Mode.TRAIN, train_transform)
-    val_dataset = BowlingDataset(args.data_dir, 0, Mode.VAL, val_transform)
-        
+    train_dataset = BowlingDataset(Path(args.data_dir), args.fold, Mode.TRAIN, train_transform)
+    val_dataset = BowlingDataset(Path(args.data_dir), args.fold, Mode.VAL, val_transform)
+
     # Create data loaders
     train_loader = DataLoader(
         train_dataset, 
