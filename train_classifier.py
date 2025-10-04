@@ -29,7 +29,7 @@ from torch.utils.tensorboard import SummaryWriter
 class FocalLoss(nn.Module):
     """Focal Loss for addressing class imbalance"""
     def __init__(self, alpha=0.25, gamma=2.0, reduction='mean'):
-        super(FocalLoss, self).__init__()
+        super().__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.reduction = reduction
