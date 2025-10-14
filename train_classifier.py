@@ -157,6 +157,7 @@ def train_epoch(model, dataloader, criterion, optimizer, device, writer=None, ep
     epoch_acc = 100. * correct / total
     return epoch_loss, epoch_acc
 
+@torch.no_grad()
 def validate_epoch(model, dataloader, criterion, device):
     """Validate for one epoch"""
     model.eval()
@@ -427,7 +428,7 @@ def main():
     print(f"Using device: {device}")
     
     # Create experiment name
-    exp_name = f"f{args.fold}_{args.model_name}_bs{args.batch_size}_lr{args.lr:.0e}_ep{args.epochs}_{args.optimizer}_{args.scheduler}"
+    exp_name = f"f{args.fold}_{args.model_name}_{args.input_height}x{args.input_width}_bs{args.batch_size}_lr{args.lr:.0e}_ep{args.epochs}_{args.optimizer}_{args.scheduler}"
     if args.weight_decay != 1e-4:
         exp_name += f"_wd{args.weight_decay:.0e}"
     if args.augment:
