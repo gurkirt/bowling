@@ -45,7 +45,17 @@ def add_symlinks(output_dir: Path) -> None:
                    (val_dir / f'frame_{val_counter:05d}.jpg').symlink_to(frame.absolute())
                    val_counter += 1
 
-
+def glob_videos(video_dir: Path, istest: bool) -> Iterator[Path]:
+    video_found = False
+    for ext in ('*.MOV', '*.mp4', '*.avi'):
+        for video in Path(video_dir).glob(ext):
+            video_found = True
+            yield video
+            if istest:
+                print("test mode: processing a single video and exiting")
+                break
+    if not video_found:
+        raise ValueError("No video files found in the directory: %s." % video_dir)
 
 def write(output_dir: Path, video_dir: Path, istest: bool) -> None:
     if output_dir.exists():
@@ -53,7 +63,6 @@ def write(output_dir: Path, video_dir: Path, istest: bool) -> None:
     frames_dir = output_dir / 'frames'
     frames_dir.mkdir(parents=True)
     queue = Queue()
-
     def worker():
         while (video := queue.get()) is not None:
             write_one(video, frames_dir)
@@ -65,12 +74,9 @@ def write(output_dir: Path, video_dir: Path, istest: bool) -> None:
         t = threading.Thread(target=worker)
         t.start()
         threads.append(t)
-    for ext in ('*.MOV', '*.mp4', '*.avi'):
-        for video in Path(video_dir).glob(ext):
+    for video in glob_videos(video_dir, istest):
             queue.put(video)
-            if istest:
-                print("test mode: processing a single video and exiting")
-                break
+            videos_found = True
     for _ in threads:
         queue.put(None)
     queue.join()
@@ -161,7 +167,8 @@ def main():
             parser.error("When --summary is set, the frames directory must be provided as the first positional arg.")
         print(_summary(Path(args.summary_dir)))
         return
-
+    if not Path(args.video_dir):
+        parser.error("The video directory does not exist: %s." % args.video_dir)
     write(Path(args.output_dir), Path(args.video_dir), args.test)
     add_symlinks(Path(args.output_dir))
 
