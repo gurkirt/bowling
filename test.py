@@ -12,7 +12,7 @@ import torchvision.transforms as transforms
 import timm
 from enum import Enum
 from pathlib import Path
-
+from typing import Any, Tuple
 
 
 class Device(str, Enum):
@@ -36,24 +36,22 @@ def path(str) -> Path:
     return p
 
 
-def load_model(model_path: Path, device: Device):
+def load_model(model_path: Path, device: Device) -> Tuple[Any, int , int]:
     """Load trained model from checkpoint"""    
     checkpoint = torch.load(str(model_path), map_location=device, weights_only=False)
     model = timm.create_model(checkpoint['args'].model_name, pretrained=False, num_classes=checkpoint['args'].num_classes)
     model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(torch.device(device.value))
     model.eval()
-    return model, device, checkpoint['args'].input_height, checkpoint['args'].input_width 
+    return model, checkpoint['args'].input_height, checkpoint['args'].input_width 
 
 
-def get_transforms(input_height=320, input_width=128):
+def get_transforms(input_height=320, input_width=128) -> transforms.Compose:
     """Get test transforms matching training"""
-    transform = transforms.Compose([
+    return transforms.Compose([
         transforms.Resize((input_height, input_width)),
         transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-    return transform
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
 
 def predict_is_in_action(model, image_path: Path, transform, device) -> (bool, float):    
@@ -74,11 +72,11 @@ def main():
     parser.add_argument('--device', type=Device.from_string, default=Device.CPU, choices=list(Device), help='Device to use (cpu/cuda)')
     args = parser.parse_args()
     
-    model, device, h, w = load_model(args.model_path, args.device)
+    model, height, width = load_model(args.model_path, args.device)
     print(model)
-    transform = get_transforms(h, w)
+    transform = get_transforms(height, width)
     
-    is_bowling, confidence = predict_is_in_action(model, args.image_path, transform, device)
+    is_bowling, confidence = predict_is_in_action(model, args.image_path, transform, args.device)
 
     if is_bowling:  
         print("🎳 Strong bowling action detected!")
