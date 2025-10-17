@@ -54,15 +54,14 @@ def get_transforms(input_height=320, input_width=128) -> transforms.Compose:
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
 
-def predict_is_in_action(model, image_path: Path, transform, device) -> (bool, float):    
-    image = Image.open(str(image_path)).convert('RGB')    
-    input_tensor = transform(image).unsqueeze(0).to(device)
+def predict_is_in_action(model, image: Image.Image, transform, device) -> bool:
+    """Return True if the model predicts the action class for a given PIL RGB image."""
+    device_t = torch.device(device.value) if isinstance(device, Device) else device
+    input_tensor = transform(image).unsqueeze(0).to(device_t)
     with torch.no_grad():
         outputs = model(input_tensor)
-        probabilities = F.softmax(outputs, dim=1)
         predicted_class = torch.argmax(outputs, dim=1).item()
-        confidence = probabilities[0][predicted_class].item()
-    return bool(predicted_class), confidence
+    return predicted_class == 1
 
 
 def main():
@@ -76,13 +75,13 @@ def main():
     print(model)
     transform = get_transforms(height, width)
     
-    is_bowling, confidence = predict_is_in_action(model, args.image_path, transform, args.device)
+    image = Image.open(str(args.image_path)).convert('RGB')
+    is_bowling = predict_is_in_action(model, image, transform, args.device)
 
-    if is_bowling:  
+    if is_bowling:
         print("🎳 Strong bowling action detected!")
     else:
         print("❌ No bowling action detected")
-    print ("%.2f" % confidence)
         
 
 if __name__ == "__main__":

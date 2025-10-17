@@ -104,10 +104,10 @@ def write_one(video: Path, frames_dir: Path) -> None:
         framefilename = Path(video.stem) / f'frame_{i:05d}_{str(in_action).lower()}.jpg'
         framepath = frames_dir / framefilename
         framepath.parent.mkdir(exist_ok=True, parents=True)
-        cv2.imwrite(str(framepath), _crop(frame))
+        cv2.imwrite(str(framepath), crop(frame))
 
 
-def _crop(frame: Frame) -> Frame:
+def crop(frame: Frame) -> Frame:
     """Remove 32% from the top vertically, and crop the frame to a square centered horizontally."""
     h, w, _ = frame.shape
     top_offset = int(h * 0.32)
