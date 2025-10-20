@@ -1,0 +1,84 @@
+{
+  "video": "Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted.mp4",
+  "total_frames": 1557,
+  "temporal_events": [
+    {
+      "start_frame": 116,
+      "end_frame": 120,
+      "middle_frame": 118,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 199,
+      "end_frame": 203,
+      "middle_frame": 201,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 272,
+      "end_frame": 275,
+      "middle_frame": 273,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 378,
+      "end_frame": 383,
+      "middle_frame": 380,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 493,
+      "end_frame": 498,
+      "middle_frame": 495,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 602,
+      "end_frame": 607,
+      "middle_frame": 604,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 675,
+      "end_frame": 678,
+      "middle_frame": 676,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 797,
+      "end_frame": 802,
+      "middle_frame": 799,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 878,
+      "end_frame": 883,
+      "middle_frame": 880,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1079,
+      "end_frame": 1084,
+      "middle_frame": 1081,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1174,
+      "end_frame": 1178,
+      "middle_frame": 1176,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1291,
+      "end_frame": 1296,
+      "middle_frame": 1293,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1399,
+      "end_frame": 1404,
+      "middle_frame": 1401,
+      "class": "bowling"
+    }
+  ]
+}

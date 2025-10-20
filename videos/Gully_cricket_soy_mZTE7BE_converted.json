@@ -1,0 +1,114 @@
+{
+  "video": "Gully_cricket_soy_mZTE7BE_converted.mp4",
+  "total_frames": 1802,
+  "temporal_events": [
+    {
+      "start_frame": 310,
+      "end_frame": 315,
+      "middle_frame": 312,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 378,
+      "end_frame": 383,
+      "middle_frame": 380,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 486,
+      "end_frame": 492,
+      "middle_frame": 489,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 613,
+      "end_frame": 618,
+      "middle_frame": 615,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 686,
+      "end_frame": 691,
+      "middle_frame": 688,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 749,
+      "end_frame": 754,
+      "middle_frame": 751,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 953,
+      "end_frame": 958,
+      "middle_frame": 955,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1018,
+      "end_frame": 1022,
+      "middle_frame": 1020,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1102,
+      "end_frame": 1107,
+      "middle_frame": 1104,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1166,
+      "end_frame": 1171,
+      "middle_frame": 1168,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1249,
+      "end_frame": 1253,
+      "middle_frame": 1251,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1249,
+      "end_frame": 1253,
+      "middle_frame": 1251,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1335,
+      "end_frame": 1341,
+      "middle_frame": 1338,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1409,
+      "end_frame": 1414,
+      "middle_frame": 1411,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1467,
+      "end_frame": 1471,
+      "middle_frame": 1469,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1538,
+      "end_frame": 1543,
+      "middle_frame": 1540,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1596,
+      "end_frame": 1599,
+      "middle_frame": 1597,
+      "class": "bowling"
+    },
+    {
+      "start_frame": 1694,
+      "end_frame": 1698,
+      "middle_frame": 1696,
+      "class": "bowling"
+    }
+  ]
+}
