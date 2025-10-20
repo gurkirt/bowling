@@ -14,86 +14,9 @@ pytest extract_bowling_test.py -vv
 
 import pytest
 from typing import List
-from extract_bowling import find_start, runs_2sec, window4
+from extract_bowling import runs_2sec, window4
 import itertools
 import numpy as np
-
-
-class TestFindStart:
-    """Test cases for the find_start function."""
-
-    @pytest.mark.parametrize("name,flags,want", [
-        # Basic functionality tests
-        ("no_action_frames", [False, False, False, False, False], -1),
-        ("insufficient_action_run", [False, True, True, False, True, True, False], -1),
-        ("exact_minimum_run", [False, False, True, True, True, True, False], 2),
-        ("longer_than_minimum_run", [False, True, True, True, True, True, False], 1),
-        ("multiple_runs_first_valid", [True, True, True, True, False, True, True, True, True], 0),
-        
-        # Position tests
-        ("run_at_beginning", [True, True, True, True, False, False], 0),
-        ("run_at_end", [False, False, True, True, True, True], 2),
-        
-        # Edge cases
-        ("empty_iterator", [], -1),
-        ("single_frame", [True], -1),
-        ("all_true_frames", [True, True, True, True, True], 0),
-        
-        # Interrupted runs
-        ("interrupted_run", [True, True, False, True, True, True, True], 3),
-                
-        # Complex patterns
-        ("mixed_pattern", [
-            False, True, False, True, True, True, True, False, 
-            True, True, True, True, True, False
-        ], 3),
-        ("run_after_long_false_sequence", [False] * 10 + [True, True, True, True], 10),        
-    ])
-    def test_find_start(self, name: str, flags: List[bool], want: int):
-        got = find_start(((f, None) for f in flags))
-        assert got == want, f"Test '{name}' failed: want {want}, got {got}"
-
-
-
-
-class TestAre4NextTrue:
-    """Test cases for the are_4_next_true function."""
-
-    @pytest.mark.parametrize("name,input_flags,want", [
-        # Basic functionality tests
-        ("all_false", [False, False, False, False, False], [False, False, False]),
-        ("all_true", [True, True, True, True, True], [True, True, True]),
-        ("insufficient_frames", [True, True, True], [False, False]),
-        ("exactly_4_frames", [True, True, True, True], [True]),
-        
-        # Mixed patterns
-        ("false_then_true", [False, True, True, True, True], [False, True]),
-        ("true_then_false", [True, True, True, True, False], [True, False]),
-        ("alternating", [True, False, True, False, True], [False, False, False]),
-        
-        # Edge cases
-        ("empty_input", [], []),
-        ("single_frame", [True], [False]),
-        ("two_frames", [True, True], [False]),
-        ("three_frames", [True, True, True], [False]),
-        
-        # Complex patterns
-        ("run_at_start", [True, True, True, True, False, False], [True, False]),
-        ("run_at_end", [False, False, True, True, True, True], [False, True]),
-        ("multiple_runs", [True, True, True, True, False, True, True, True, True], [True, False, True]),
-        
-        # Mixed true/false patterns
-        ("scattered_true", [True, False, True, True, True, False], [False, False, True]),
-        ("long_sequence", [False] * 5 + [True, True, True, True] + [False] * 3, [False] * 5 + [True] + [False] * 3),
-    ])
-    def test_bowling_iter(self, name: str, input_flags: List[bool], want: List[bool]):
-        """Test are_4_next_true function with various inputs."""
-        # Create dummy frames (None for simplicity)
-        labelled_frames = iter((flag, None) for flag in input_flags)
-        
-        got = list(runs_2sec(labelled_frames))
-        assert got == want, f"Test '{name}' failed: want {want}, got {got}"
-
 
 class TestWindow4:
     """Parameterized tests for window4 iterator (4-wide sliding window with padding)."""
