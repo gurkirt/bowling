@@ -6,3 +6,5 @@ training_set/
 videos-downloaded/
 *.MOV
 *.mov
+*.mp4
+trainings/
