@@ -7,7 +7,8 @@ import argparse
 
 
 def get_video_files(video_dir):
-    return sorted(glob(os.path.join(video_dir, '*.MOV')))
+    ## .MOV or .mp4 
+    return sorted(glob(os.path.join(video_dir, '*.MOV')) + glob(os.path.join(video_dir, '*.mp4')))
 
 def annotation_path(video_path):
     base = os.path.splitext(os.path.basename(video_path))[0]
@@ -42,11 +43,11 @@ def label_video(video_path, class_name):
         # Display current instance info
         text = f"Frame: {frame_idx+1}/{total_frames} | Current: Start={current_start} End={current_end}"
         # print(scale_factor)
-        cv2.putText(display, text, (10, top_offset + 60), cv2.FONT_HERSHEY_SIMPLEX, int(2), (0,255,0), int(1/scale_factor))
+        cv2.putText(display, text, (10, top_offset + 60), cv2.FONT_HERSHEY_SIMPLEX, max(1,int(2*scale_factor)), (0,255,0), int(1/scale_factor))
 
         # Display existing instances
         instances_text = f"Instances: {len(instances)}"
-        cv2.putText(display, instances_text, (10, top_offset + 160), cv2.FONT_HERSHEY_SIMPLEX, int(2), (255,0,0), int(1/scale_factor))
+        cv2.putText(display, instances_text, (10, top_offset + 160), cv2.FONT_HERSHEY_SIMPLEX, max(1,int(2*scale_factor)), (255,0,0), int(1/scale_factor))
 
         # Crop and resize
         display = display[top_offset:-bottom_offset, :]
@@ -102,6 +103,8 @@ def label_video(video_path, class_name):
             # Move to next instance - auto-save current if both start and end are set
             if current_start is not None and current_end is not None:
                 add_instance(current_start, current_end, instances)
+                current_start = None
+                current_end = None
             else:
                 print("Cannot move to next instance: Set both start and end frames first")
         elif key == ord('a'):
