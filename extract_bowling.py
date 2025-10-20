@@ -65,7 +65,7 @@ def labelled_frames(video_path: Path, model, transform, device: Device) -> Itera
 WINDOW_SIZE = 4
 
 
-def window4(it: Iterator, fillvalue=None):
+def window4(it: Iterator, fillvalue=None) -> Iterator:
     """Returns an iterator that yields the tuples of 4 consecutives elements."""
     peekers = itertools.tee(it, WINDOW_SIZE)
     for i in range(WINDOW_SIZE):
@@ -85,7 +85,8 @@ def runs_2sec(labelled_frames: Iterator[tuple[bool, Frame]], fps: float) -> Iter
             yield from (next4[0][1] for next4 in itertools.islice(it, run_length-1))        
 
 
-def write_actions(action_frames: Iterator[Optional[Frame]], input_path: Path):
+def write_actions(action_frames: Iterator[Optional[Frame]], input_path: Path) -> None:
+    """Writes each extracted bowling action in a separate file of 2 seconds."""
     cap = cv2.VideoCapture(str(input_path))
     if not cap.isOpened():
         raise ValueError(f"failed to open input video: {input_path}")
@@ -106,7 +107,8 @@ def write_actions(action_frames: Iterator[Optional[Frame]], input_path: Path):
             out.write(f)
     out.release()
 
-def extract_fps(video):
+def extract_fps(video: Path) -> float:
+    """Read the fps out of a video."""
     cap = cv2.VideoCapture(str(video))
     if not cap.isOpened():
         raise ValueError(f"failed to open input video: {video}")
