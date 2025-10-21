@@ -16,11 +16,12 @@ import collections
 import cv2
 import json
 import os
+import time
 import numpy as np
 import random 
 import shutil
-import threading
-from queue import Queue
+import multiprocessing as mp
+from multiprocessing import Pool
 
 Frame: TypeAlias = np.ndarray 
 
@@ -62,26 +63,10 @@ def write(output_dir: Path, video_dir: Path, istest: bool) -> None:
         shutil.rmtree(output_dir)
     frames_dir = output_dir / 'frames'
     frames_dir.mkdir(parents=True)
-    queue = Queue()
-    def worker():
-        while (video := queue.get()) is not None:
-            write_one(video, frames_dir)
-            queue.task_done()
-        queue.task_done()
-
-    threads = []
-    for _ in range(os.cpu_count() ):
-        t = threading.Thread(target=worker)
-        t.start()
-        threads.append(t)
-    for video in glob_videos(video_dir, istest):
-            queue.put(video)
-            videos_found = True
-    for _ in threads:
-        queue.put(None)
-    queue.join()
-    for t in threads:
-        t.join()
+    
+    videos = list(glob_videos(video_dir, istest))
+    with Pool(processes=min(8, mp.cpu_count())) as pool:
+        pool.starmap(write_one, [(video, frames_dir) for video in videos])
 
 
 def write_one(video: Path, frames_dir: Path) -> None:
@@ -125,7 +110,7 @@ def crop(frame: Frame) -> Frame:
 def _frames(video: Path) -> Iterator[Frame]:
     cap = cv2.VideoCapture(str(video))
     frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"extracting frames from {video.name}: {frame_count} frames")
+    start_time = time.perf_counter()
     try:
       while True:
           ret, frame = cap.read()
@@ -134,6 +119,9 @@ def _frames(video: Path) -> Iterator[Frame]:
           yield frame
     finally:
         cap.release()
+    end_time = time.perf_counter()
+    elapsed = end_time - start_time
+    print(f"extracted frames from {video.name}: {frame_count} frames in {elapsed:.2f} seconds ({frame_count/elapsed:.2f} fps)")
 
 
 def _summary(frame_dir: Path) -> str:
