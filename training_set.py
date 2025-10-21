@@ -36,14 +36,14 @@ def add_symlinks(output_dir: Path) -> None:
         train_counter, val_counter = 0, 0
         num_videos = len(list((output_dir / 'frames').iterdir()))
         for i, video in enumerate((output_dir / 'frames').iterdir()):
-            if 10*i//num_videos != fold:
-                for frame in video.glob('*.jpg'):
-                    (train_dir / f'frame_{train_counter:05d}.jpg').symlink_to(frame.absolute())
-                    train_counter += 1
-            else:
+            if video.stem.endswith("_val") or 10*i//num_videos == fold:
                 for frame in video.glob('*.jpg'):
                    (val_dir / f'frame_{val_counter:05d}.jpg').symlink_to(frame.absolute())
                    val_counter += 1
+            else :
+                for frame in video.glob('*.jpg'):
+                    (train_dir / f'frame_{train_counter:05d}.jpg').symlink_to(frame.absolute())
+                    train_counter += 1
 
 def glob_videos(video_dir: Path, istest: bool) -> Iterator[Path]:
     video_found = False
@@ -87,7 +87,7 @@ def write(output_dir: Path, video_dir: Path, istest: bool) -> None:
 def write_one(video: Path, frames_dir: Path) -> None:
     """
     Extract frames from videos in video_dir, save to frames_dir.
-    Only 10% of 'not in action' frames are saved.
+    Only 10% of 'not in action' frames are sampled and saved.
     """
     try:
         with open(video.with_suffix('.json')) as f:
@@ -98,8 +98,8 @@ def write_one(video: Path, frames_dir: Path) -> None:
 
     for i, frame in enumerate(_frames(video)):
         in_action = any(e["start_frame"] - 2 <= i <= e['end_frame'] for e in events)
-        if not in_action and random.randint(0, 10) % 10 != 0:
-            # Save only 10% of the frames "not in action".
+        if not in_action and random.choice([True, False]):
+            # Save only 50% of the frames "not in action".
             continue
         framefilename = Path(video.stem) / f'frame_{i:05d}_{str(in_action).lower()}.jpg'
         framepath = frames_dir / framefilename
