@@ -8,3 +8,4 @@ videos-downloaded/
 *.mov
 *.mp4
 trainings/
+__pycache__/
