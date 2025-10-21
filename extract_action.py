@@ -25,12 +25,14 @@ import itertools
 
 def label_frames(cap: cv2.VideoCapture, is_action: Model) -> Iterator[tuple[bool, Frame]]:
     """Returns 2-tuples composed of whether the frame is in_action and the frame itself."""
+    index = 0
     while True:
         ok, frame = cap.read()
         if not ok:
             break
         image = Image.fromarray(crop(frame))
-        yield is_action(image), frame
+        yield is_action(image, index), frame
+        index += 1
 
 WINDOW_SIZE = 4
 
@@ -96,7 +98,7 @@ def main() -> None:
     args = parser.parse_args()
  
     is_action = Model(args.model, args.device)
- 
+    
     cap = cv2.VideoCapture(str(args.video))
     if not cap.isOpened():
         raise ValueError(f"failed to open input video: {args.video}")

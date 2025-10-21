@@ -33,8 +33,8 @@ class Model:
         self.transform = _get_transforms(h, w)
         self.device = device
 
-    def __call__(self, image: Image.Image) -> bool:
-        return _predict_is_in_action(self.model, image, self.transform, self.device)
+    def __call__(self, image: Image.Image, index: int) -> bool:
+        return _predict_is_in_action(self.model, image, self.transform, self.device, index)
 
 
 def _load_model(model_path: Path, device: Device) -> Tuple[Any, int , int]:
@@ -54,15 +54,16 @@ def _get_transforms(input_height=320, input_width=128) -> transforms.Compose:
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])])
 
 
-def _predict_is_in_action(model, image: Image.Image, transform, device) -> bool:
+def _predict_is_in_action(model, image: Image.Image, transform, device: Device, index: int) -> bool:
     """Return True if the model predicts the action class for a given PIL RGB image."""
     device_t = torch.device(device.value) if isinstance(device, Device) else device
     input_tensor = transform(image).unsqueeze(0).to(device_t)
     with torch.no_grad():
         outputs = model(input_tensor)
+        outputs = outputs.softmax(dim=1)
         predicted_class = torch.argmax(outputs, dim=1).item()
     answer = predicted_class == 1
-    print(int(answer), end="")
+    print(f'index: {index}, answer: {int(answer)}, confidence: {outputs[0,1].item():.4f}')
     sys.stdout.flush()
     return answer
 
