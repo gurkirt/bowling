@@ -14,8 +14,7 @@ pytest extract_bowling_test.py -vv
 
 import pytest
 from typing import List
-from extract_bowling import runs_2sec, window4
-import itertools
+from extract_action import runs_2sec, window4
 import numpy as np
 
 class TestWindow4:

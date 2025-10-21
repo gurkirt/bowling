@@ -7,60 +7,30 @@ numbers: one half a second before X and one two seconds after X.
 
 import argparse
 from pathlib import Path
-from typing import Iterator, Optional, TypeAlias
+from typing import Iterator, Optional, TypeAlias, Callable
 import numpy as np
 
 import cv2
 from PIL import Image
 
-from debug import (
-    load_model,
-    get_transforms,
-    predict_is_in_action,
+from modellib import (
+    Model,
     Device,
-    path,
+    Frame,
+    crop,
 )
 import itertools
 
-Frame: TypeAlias = np.ndarray 
-FrameIndex: TypeAlias = int
-FPS: TypeAlias = float
-
-def crop(frame: Frame) -> Frame:
-    """Remove 32% from the top vertically, crop the frame to a square centered horizontally."""
-    h, w, _ = frame.shape
-    top_offset = int(h * 0.32)
-    new_h = h - top_offset
-    side = min(new_h, w)
-    center_x = w // 2
-    center_y = top_offset + new_h // 2
-    left = max(center_x - side // 2, 0)
-    right = left + side
-    top = max(center_y - side // 2, top_offset)
-    bottom = top + side
-    return frame[top:bottom, left:right]
 
 
-def labelled_frames(video_path: Path, model, transform, device: Device) -> Iterator[tuple[bool, Frame]]:
+def label_frames(cap: cv2.VideoCapture, is_action: Model) -> Iterator[tuple[bool, Frame]]:
     """Returns 2-tuples composed of whether the frame is in_action and the frame itself."""
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        raise ValueError(f"failed to open video: {video_path}")
-    found_action = False
-    try:
-        while True:
-            ok, full_frame = cap.read()
-            if not ok:
-                break
-            cropped_image = Image.fromarray(crop(full_frame))
-            p = predict_is_in_action(model, cropped_image, transform, device)
-            if p:
-                found_action = True
-            yield p, full_frame
-    finally:
-        cap.release()
-    print(f"found an action? {found_action}")
-
+    while True:
+        ok, frame = cap.read()
+        if not ok:
+            break
+        image = Image.fromarray(crop(frame))
+        yield is_action(image), frame
 
 WINDOW_SIZE = 4
 
@@ -75,11 +45,12 @@ def window4(it: Iterator, fillvalue=None) -> Iterator:
 
 
 def runs_2sec(labelled_frames: Iterator[tuple[bool, Frame]], fps: float) -> Iterator[Optional[Frame]]:
-    """Returns an iterator that of frames. Each action starts with None, then frames until the end or the next None."""
+    """Returns an iterator that of frames. Each action starts with None, then 2 seconds of frames."""
     run_length = max(1, int(round(2.0 * fps)))
     it = window4(labelled_frames, fillvalue=(False, None)) 
     for next4 in it:
         if all(e[0] for e in next4):
+            print("\nfound start of bowling")
             yield None
             yield next4[0][1]
             yield from (next4[0][1] for next4 in itertools.islice(it, run_length-1))        
@@ -96,7 +67,7 @@ def write_actions(action_frames: Iterator[Optional[Frame]], input_path: Path) ->
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     cap.release()
     action_count = 0 
-    output_path = str(input_path.parent / (input_path.name + "_{:02d}" + "." + input_path.suffix))
+    output_path = str(input_path.parent / (input_path.name + "_{:02d}" + input_path.suffix))
     out = None
     for f in action_frames:
         if f is None:
@@ -105,10 +76,11 @@ def write_actions(action_frames: Iterator[Optional[Frame]], input_path: Path) ->
             out = cv2.VideoWriter(output_path.format(action_count), fourcc, fps, (width, height))
         else:
             out.write(f)
-    out.release()
+    if out is not None:
+        out.release()
 
 def extract_fps(video: Path) -> float:
-    """Read the fps out of a video."""
+    """Reads the fps out of a video."""
     cap = cv2.VideoCapture(str(video))
     if not cap.isOpened():
         raise ValueError(f"failed to open input video: {video}")
@@ -118,17 +90,21 @@ def extract_fps(video: Path) -> float:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Scan video for action start frame")
-    parser.add_argument("video", type=path, help="Path to input video")
+    parser.add_argument("video", type=Path, help="Path to input video")
     parser.add_argument("model", type=Path, help="Path to model checkpoint (.pth)")
     parser.add_argument("--device", type=Device.from_string, default=Device.CPU, choices=list(Device), help="Device to use (cpu/cuda)")
     args = parser.parse_args()
  
-    model, input_height, input_width = load_model(args.model, args.device)
-    ts = get_transforms(input_height, input_width)
-    frames_and_labels = labelled_frames(args.video, model, ts, args.device)
+    is_action = Model(args.model, args.device)
+ 
+    cap = cv2.VideoCapture(str(args.video))
+    if not cap.isOpened():
+        raise ValueError(f"failed to open input video: {args.video}")
+
+    frames_and_labels = label_frames(cap, is_action)
     fps = extract_fps(args.video)
     write_actions(runs_2sec(frames_and_labels, fps), args.video)
-        
+    cap.release()    
 
 if __name__ == "__main__":
     main()
