@@ -2,16 +2,17 @@
 from typing import Any, Tuple, TypeAlias, List
 
 import altair as alt
+import dataclasses
 import enum
+import json
+import numpy as np
+import pandas as pd
+import pathlib
+import PIL 
+import sys
+import timm
 import torch
 import torchvision.transforms as transforms
-import timm
-import pandas as pd
-import PIL 
-import numpy as np
-import pathlib
-import sys
-import dataclasses
 
 Frame: TypeAlias = np.ndarray 
 
@@ -93,6 +94,10 @@ class FrameStat:
     prediction: bool
     confidence: float
 
+def read_start_end(video: pathlib.Path) -> List[Tuple[int, int]]:
+    with open(video.with_suffix('.json')) as f:
+        events = [(e["start_frame"], e["end_frame"]) for e in json.load(f)['temporal_events']]
+    return events
 
 
 class Stats:
@@ -106,14 +111,14 @@ class Stats:
         self.stats.append(FrameStat(index, correct, prediction, confidence))
 
     def to_chart(self, filename) -> pd.DataFrame:
-        rows = [(s.index, s.confidence, 'probability') for s in self.stats]
+        rows = [(s.index, int(s.prediction), 'prediction') for s in self.stats]
         rows.extend([(s.index, int(s.correct), 'correct') for s in self.stats])
-        rows.extend([(s.index, int(s.correct), 'predicted') for s in self.stats])
+        rows.extend([(s.index, s.confidence, 'confidence') for s in self.stats])
 
-        df = pd.DataFrame(rows, columns=['index', 'probability', 'type'])
+        df = pd.DataFrame(rows, columns=['index', 'confidence', 'type'])
         alt.Chart(df).mark_line().encode(
             x='index',
-            y='probability',
+            y='confidence',
             color="type:N",
-            tooltip=['index', 'probability', 'type']
+            tooltip=['index', 'confidence', 'type']
        ).properties(title=str(self.video)).save(filename)

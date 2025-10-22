@@ -17,6 +17,7 @@ from modellib import (
     Frame,
     crop,
     Stats,
+    read_start_end,
 )
 import itertools
 import json
@@ -101,8 +102,7 @@ def main() -> None:
     args = parser.parse_args()
  
     is_action = Model(args.model, args.device)
-    with open(args.video.with_suffix('.json')) as f:
-        events = [(e["start_frame"], e["end_frame"]) for e in json.load(f)['temporal_events']]
+    events = read_start_end(args.video)
 
     stats = Stats(args.video, events)
     cap = cv2.VideoCapture(str(args.video))
