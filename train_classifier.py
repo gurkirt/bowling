@@ -96,9 +96,10 @@ def get_transforms(input_height=256, input_width=256, augment=True) -> tuple[tra
         train_transform = transforms.Compose([
             transforms.Resize((input_height, input_width)),
             transforms.RandomHorizontalFlip(p=0.5),
-            transforms.RandomRotation(degrees=5),  # Reduced rotation for rectangular images
-            transforms.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1),
-            transforms.RandomAffine(degrees=0, translate=(0.05, 0.05)),  # Reduced translation
+            transforms.RandomRotation(degrees=10),  # Reduced rotation for rectangular images
+            transforms.ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0.15),
+            transforms.RandomAffine(degrees=10, translate=(0.05, 0.05)),  # Reduced translation
+            transforms.RandomResizedCrop((input_height, input_width), scale=(0.8, 1.0), ratio=(0.9, 1.1)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
