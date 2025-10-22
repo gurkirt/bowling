@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-export_coreml.py - Export trained PyTorch model to CoreML format (.mlmodel) with float16 precision
+export_coreml.py - Export trained PyTorch model to CoreML format (.mlpackage) with float16 precision
 """
 
 import argparse
@@ -104,17 +104,35 @@ def export_to_coreml(
     
     # Add input/output descriptions
     mlmodel.input_description["input"] = f"Input image tensor of shape (1, 3, {input_height}, {input_width})"
-    mlmodel.output_description["output"] = "Class probabilities"
+    
+    # Add descriptions for classifier outputs (classLabel and class probabilities)
+    spec = mlmodel.get_spec()
+    output_names = [output.name for output in spec.description.output]
+    print(f"Output feature names: {output_names}")
+    
+    for output_name in output_names:
+        if output_name in mlmodel.output_description:
+            if "classLabel" in output_name or "Label" in output_name:
+                mlmodel.output_description[output_name] = "Predicted class label"
+            elif "Probability" in output_name or "probability" in output_name:
+                mlmodel.output_description[output_name] = "Class probabilities dictionary"
     
     # Save the model
     print(f"\nSaving CoreML model to: {output_path}")
     mlmodel.save(str(output_path))
     
-    # Get model size
-    size_mb = output_path.stat().st_size / (1024 * 1024)
+    # Get model size (handle both directory and file)
+    if output_path.is_dir():
+        # .mlpackage is a directory
+        size_mb = sum(f.stat().st_size for f in output_path.rglob('*') if f.is_file()) / (1024 * 1024)
+    else:
+        # .mlmodel is a single file
+        size_mb = output_path.stat().st_size / (1024 * 1024)
+    
     print(f"Model saved successfully!")
-    print(f"File size: {size_mb:.2f} MB")
+    print(f"Total size: {size_mb:.2f} MB")
     print(f"Precision: {'float16' if use_float16 else 'float32'}")
+    print(f"Format: {'ML Package (.mlpackage)' if output_path.suffix == '.mlpackage' else 'ML Model (.mlmodel)'}")
     
     return mlmodel
 
@@ -136,14 +154,20 @@ def validate_coreml_model(mlmodel: ct.models.MLModel, config: Dict[str, Any]) ->
     
     print("Validation successful!")
     print(f"Output keys: {list(predictions.keys())}")
-    print(f"Output shape: {predictions['output'].shape if 'output' in predictions else 'N/A'}")
+    
+    # Print details for each output
+    for key, value in predictions.items():
+        if hasattr(value, 'shape'):
+            print(f"  {key}: shape {value.shape}")
+        else:
+            print(f"  {key}: {type(value).__name__} = {value}")
     
     return predictions
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Export PyTorch bowling classifier to CoreML format (.mlmodel) with float16 precision"
+        description="Export PyTorch bowling classifier to CoreML format (.mlpackage) with float16 precision"
     )
     
     parser.add_argument(
@@ -156,7 +180,7 @@ def main() -> None:
         '--output',
         type=pathlib.Path,
         default=None,
-        help='Output path for CoreML model (.mlmodel). Default: same name as input with .mlmodel extension'
+        help='Output path for CoreML model (.mlpackage). Default: same name as input with .mlpackage extension'
     )
     
     parser.add_argument(
@@ -180,11 +204,11 @@ def main() -> None:
     
     # Determine output path
     if args.output is None:
-        output_path = args.model_path.with_suffix('.mlmodel')
+        output_path = args.model_path.with_suffix('.mlpackage')
     else:
         output_path = args.output
-        if output_path.suffix != '.mlmodel':
-            output_path = output_path.with_suffix('.mlmodel')
+        if output_path.suffix != '.mlpackage':
+            output_path = output_path.with_suffix('.mlpackage')
     
     # Create output directory if it doesn't exist
     output_path.parent.mkdir(parents=True, exist_ok=True)
