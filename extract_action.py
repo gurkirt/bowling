@@ -8,8 +8,6 @@ numbers: one half a second before X and one two seconds after X.
 import argparse
 from pathlib import Path
 from typing import Iterator, Optional, TypeAlias, Callable
-import numpy as np
-
 import cv2
 from PIL import Image
 
@@ -18,12 +16,15 @@ from modellib import (
     Device,
     Frame,
     crop,
+    Stats,
 )
 import itertools
+import json
+import webbrowser
 
 
 
-def label_frames(cap: cv2.VideoCapture, is_action: Model) -> Iterator[tuple[bool, Frame]]:
+def label_frames(cap: cv2.VideoCapture, is_action: Model, stats: Stats) -> Iterator[tuple[bool, Frame]]:
     """Returns 2-tuples composed of whether the frame is in_action and the frame itself."""
     index = 0
     while True:
@@ -31,7 +32,10 @@ def label_frames(cap: cv2.VideoCapture, is_action: Model) -> Iterator[tuple[bool
         if not ok:
             break
         image = Image.fromarray(crop(frame))
-        yield is_action(image, index), frame
+        answer,  confidence = is_action(image)
+        print(f'index: {index}, answer: {int(answer)}, confidence: {confidence:.4f}')
+        stats.add(index, answer, confidence)
+        yield answer, frame
         index += 1
 
 
@@ -97,15 +101,20 @@ def main() -> None:
     args = parser.parse_args()
  
     is_action = Model(args.model, args.device)
-    
+    with open(args.video.with_suffix('.json')) as f:
+        events = [(e["start_frame"], e["end_frame"]) for e in json.load(f)['temporal_events']]
+
+    stats = Stats(args.video, events)
     cap = cv2.VideoCapture(str(args.video))
     if not cap.isOpened():
         raise ValueError(f"failed to open input video: {args.video}")
-
-    frames_and_labels = label_frames(cap, is_action)
+    frames_and_labels = label_frames(cap, is_action, stats)
     fps = extract_fps(args.video)
     write_actions(runs_2sec(frames_and_labels, fps), args.video)
-    cap.release()    
+    cap.release()
+    chart_path = "chart.html"
+    stats.to_chart(chart_path)
+    print(f"Created an SVG interactive chart of the prediction and correct values in {chart_path}. Open your browser on this file.")
 
 if __name__ == "__main__":
     main()

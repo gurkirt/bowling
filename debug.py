@@ -19,7 +19,8 @@ def main():
     args = parser.parse_args()
     is_action = Model(args.model_path, args.device)
     image = Image.open(str(args.image_path)).convert('RGB')
-    if is_action(image):
+    is_bowling, _ = is_action(image)
+    if is_bowling:
         print("🎳 Strong bowling action detected!")
     else:
         print("❌ No bowling action detected")
