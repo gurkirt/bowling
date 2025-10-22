@@ -68,20 +68,20 @@ def write_all(output_dir: pathlib.Path, video_dir: pathlib.Path, istest: bool) -
                                  for video in glob_videos(video_dir, istest)])
 
 
+
 def write_one(video: pathlib.Path, frames_dir: pathlib.Path) -> None:
     """
     Extract frames from videos in video_dir, save to frames_dir.
     Only 10% of 'not in action' frames are sampled and saved.
     """
     try:
-        with open(video.with_suffix('.json')) as f:
-            events = json.load(f)['temporal_events']
+        events = modellib.read_start_end(video)
     except Exception as e:
         print(f"Warning: Skipping {video.name}: could not read annotation {e}")
         return
 
     for i, frame in enumerate(_frames(video)):
-        in_action = any(e["start_frame"] - 2 <= i <= e['end_frame'] for e in events)
+        in_action = any(start - 2 <= i <= end for (start, end) in events)
         if not in_action and random.choice([True, False]):
             # Save only 50% of the frames "not in action".
             continue
