@@ -34,11 +34,10 @@ def label_frames(cap: cv2.VideoCapture, is_action: Model) -> Iterator[tuple[bool
         yield is_action(image, index), frame
         index += 1
 
-WINDOW_SIZE = 4
-
 
 def window4(it: Iterator, fillvalue=None) -> Iterator:
     """Returns an iterator that yields the tuples of 4 consecutives elements."""
+    WINDOW_SIZE = 4
     peekers = itertools.tee(it, WINDOW_SIZE)
     for i in range(WINDOW_SIZE):
         for _ in range(i):
@@ -69,7 +68,7 @@ def write_actions(action_frames: Iterator[Optional[Frame]], input_path: Path) ->
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     cap.release()
     action_count = 0 
-    output_path = str(input_path.parent / (input_path.name + "_{:02d}" + input_path.suffix))
+    output_path = str(input_path.parent / (input_path.stem + "_{:02d}" + '.mp4v'))
     out = None
     for f in action_frames:
         if f is None:
