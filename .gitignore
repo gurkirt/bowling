@@ -9,4 +9,4 @@ videos-downloaded/
 *.mp4
 trainings/
 __pycache__/
-
+chart.html
