@@ -111,14 +111,29 @@ class Stats:
         self.stats.append(FrameStat(index, correct, prediction, confidence))
 
     def to_chart(self, filename) -> pd.DataFrame:
-        rows = [(s.index, int(s.prediction), 'prediction') for s in self.stats]
-        rows.extend([(s.index, int(s.correct), 'correct') for s in self.stats])
-        rows.extend([(s.index, s.confidence, 'confidence') for s in self.stats])
+        points  = [(s.index, int(s.prediction), 'prediction') for s in self.stats]
+        points.extend([(s.index, int(s.correct), 'correct') for s in self.stats])
+        lines  = [(s.index, s.confidence, 'confidence') for s in self.stats]
+       
+        dfpoints = pd.DataFrame(points, columns=['index', 'probability', 'type'])
+        dflines = pd.DataFrame(lines, columns=['index', 'probability', 'type'])
+        
+        group = ['prediction', 'correct']
+        shapes = ['wedge', 'cross']
 
-        df = pd.DataFrame(rows, columns=['index', 'confidence', 'type'])
-        alt.Chart(df).mark_line().encode(
+        pointschart = alt.Chart(dfpoints).mark_point().encode(
             x='index',
-            y='confidence',
+            y='probability',
+            shape=alt.Shape('type:N', scale=alt.Scale(domain=group, range=shapes)),
             color="type:N",
-            tooltip=['index', 'confidence', 'type']
-       ).properties(title=str(self.video)).save(filename)
+            tooltip=['index', 'probability', 'type'])
+
+        lineschart = alt.Chart(dflines).mark_line().encode(
+            x='index',
+            y='probability',
+            color=alt.value('green'),
+            tooltip=['index', 'probability', 'type'])
+
+        (pointschart + lineschart).properties(
+            title=self.video.stem + "\n" + ','.join(f"{s}-{e}" for s, e in self.events)
+        ).save(filename)
