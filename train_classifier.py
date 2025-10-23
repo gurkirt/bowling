@@ -5,6 +5,7 @@ train_classifier.py - Train a PyTorch image classification model using timm
 
 from enum import Enum
 import os
+import pdb
 import argparse
 import random
 import numpy as np
@@ -61,17 +62,35 @@ class Mode(Enum):
     VAL = "val"
 
 
+## include in imagelist
+def include_in_imagelist(img: Path, prob: float) -> bool:
+    """Decide whether to include image based on probability"""
+    if img.stem.endswith('false'):
+        return random.random() >= prob
+    return True
+
+
 class BowlingDataset(Dataset):
-    def __init__(self, root_dir: Path, fold: int, mode: Mode, transform):
+    def __init__(self, root_dir: Path, fold: int, mode: Mode, neg_skip_prob: float = 0.0, transform=None):
         print(f"Initializing dataset: {mode.value} for fold {fold} from {root_dir}")
         self.links_dir: Path = root_dir / str(fold) / mode.value
         self.transform = transform
-    
+        self.full_image_list = list(self.links_dir.glob("*.jpg"))
+        self.neg_skip_prob = neg_skip_prob  # Probability to include negative samples
+        self.image_list = []
+        for img in self.full_image_list:
+            imgname = img.resolve()
+            if include_in_imagelist(imgname, self.neg_skip_prob):
+                self.image_list.append(imgname)
+        
+        print(f"Total images in {mode.value} set: {len(self.image_list)} sampled from {len(self.full_image_list)}")
+
+
     def __len__(self):
-        return len(list(self.links_dir.glob("*.jpg")))
-    
+        return len(self.image_list)
+
     def __getitem__(self, idx):
-        img_path = (self.links_dir / f'frame_{idx:05d}.jpg').resolve()
+        img_path = self.image_list[idx]
         label = torch.tensor(img_path.stem.endswith('true'), dtype=torch.long)
         try:
             image = Image.open(img_path).convert('RGB')
@@ -99,7 +118,7 @@ def get_transforms(input_height=256, input_width=256, augment=True) -> tuple[tra
             transforms.RandomRotation(degrees=10),  # Reduced rotation for rectangular images
             transforms.ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0.15),
             transforms.RandomAffine(degrees=10, translate=(0.05, 0.05)),  # Reduced translation
-            transforms.RandomResizedCrop((input_height, input_width), scale=(0.8, 1.0), ratio=(0.9, 1.1)),
+            # transforms.RandomResizedCrop((input_height, input_width), scale=(0.8, 1.0), ratio=(0.9, 1.1)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
@@ -396,6 +415,7 @@ def main():
     # Class balancing arguments
     parser.add_argument('--class_balance', choices=['none', 'focal'], default='none', 
                        help='Class balancing method: none, weights (weighted loss), sampling (weighted sampler), focal (focal loss)')
+    parser.add_argument('--neg_skip_prob', type=float, default=0.5, help='Probability to skip negative samples')
     parser.add_argument('--focal_alpha', type=float, default=0.25, help='Focal loss alpha parameter')
     parser.add_argument('--focal_gamma', type=float, default=2.0, help='Focal loss gamma parameter')
     
@@ -469,8 +489,8 @@ def main():
     train_transform, val_transform = get_transforms(args.input_height, args.input_width, args.augment)
     
     # Create datasets
-    train_dataset = BowlingDataset(Path(args.data_dir), args.fold, Mode.TRAIN, train_transform)
-    val_dataset = BowlingDataset(Path(args.data_dir), args.fold, Mode.VAL, val_transform)
+    train_dataset = BowlingDataset(Path(args.data_dir), args.fold, Mode.TRAIN, args.neg_skip_prob, transform=train_transform)
+    val_dataset = BowlingDataset(Path(args.data_dir), args.fold, Mode.VAL, transform=val_transform)
 
     # Create data loaders
     train_loader = DataLoader(
