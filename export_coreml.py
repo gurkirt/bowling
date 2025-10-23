@@ -43,17 +43,30 @@ def create_model(checkpoint: Dict[str, Any], config: Dict[str, Any]) -> torch.nn
     """Create and load the PyTorch model"""
     print(f"\nCreating model: {config['model_name']}")
     
-    model = timm.create_model(
+    base_model = timm.create_model(
         config['model_name'], 
         pretrained=False, 
         num_classes=config['num_classes']
     )
     
     # Load weights
-    model.load_state_dict(checkpoint['model_state_dict'])
+    base_model.load_state_dict(checkpoint['model_state_dict'])
+    base_model.eval()
+    
+    # Wrap the model with softmax to normalize outputs
+    class ModelWithSoftmax(torch.nn.Module):
+        def __init__(self, base_model):
+            super().__init__()
+            self.base_model = base_model
+            
+        def forward(self, x):
+            logits = self.base_model(x)
+            return torch.nn.functional.softmax(logits, dim=1)
+    
+    model = ModelWithSoftmax(base_model)
     model.eval()
     
-    print(f"Model loaded successfully")
+    print(f"Model loaded successfully with softmax normalization")
     print(f"Total parameters: {sum(p.numel() for p in model.parameters()):,}")
     
     return model
