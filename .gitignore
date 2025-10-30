@@ -1,3 +1,4 @@
+.DS_Store
 analysis/
 crops_dataset/
 videos_not_used/
@@ -10,3 +11,45 @@ videos-downloaded/
 trainings/
 __pycache__/
 chart.html
+.AppleDouble
+.LSOverride
+Icon\r
+
+# Xcode user data and state
+**/*.xcuserstate
+**/*.xcscmblueprint
+line&length.xcodeproj/xcuserdata/
+line&length.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Build artifacts
+build/
+DerivedData/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# CocoaPods (if used)
+Pods/
+
+# Carthage (if used)
+Carthage/Build/
+
+# Fastlane (if used)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Archives and symbols
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# IDE/editor settings
+.vscode/
+.idea/
+
+# Generated plist variants
+*.plist~
+

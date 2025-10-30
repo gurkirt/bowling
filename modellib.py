@@ -111,24 +111,25 @@ class Stats:
         self.stats.append(FrameStat(index, correct, prediction, confidence))
 
     def to_chart(self, filename) -> pd.DataFrame:
-        points  = [(s.index, int(s.prediction), 'prediction') for s in self.stats]
-        points.extend([(s.index, int(s.correct), 'correct') for s in self.stats])
-        lines  = [(s.index, s.confidence, 'confidence') for s in self.stats]
-       
-        dfpoints = pd.DataFrame(points, columns=['index', 'probability', 'type'])
-        dflines = pd.DataFrame(lines, columns=['index', 'probability', 'type'])
+        # Create a single DataFrame with all data
+        rows = []
+        rows.extend([(s.index, int(s.prediction), 'prediction') for s in self.stats])
+        rows.extend([(s.index, int(s.correct), 'correct') for s in self.stats])
+        rows.extend([(s.index, s.confidence, 'confidence') for s in self.stats])
+        
+        df = pd.DataFrame(rows, columns=['index', 'probability', 'type'])
         
         group = ['prediction', 'correct']
         shapes = ['wedge', 'cross']
 
-        pointschart = alt.Chart(dfpoints).mark_point().encode(
+        pointschart = alt.Chart(df[df['type'].isin(['prediction', 'correct'])]).mark_point().encode(
             x='index',
             y='probability',
             shape=alt.Shape('type:N', scale=alt.Scale(domain=group, range=shapes)),
             color="type:N",
             tooltip=['index', 'probability', 'type'])
 
-        lineschart = alt.Chart(dflines).mark_line().encode(
+        lineschart = alt.Chart(df[df['type'] == 'confidence']).mark_line().encode(
             x='index',
             y='probability',
             color=alt.value('green'),
