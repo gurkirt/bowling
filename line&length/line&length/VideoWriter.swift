@@ -6,37 +6,81 @@
 //
 
 import AVFoundation
+import CoreVideo
+
+// Shared constants for frame buffering
+enum FrameBufferConstants {
+    /// Pre-trigger frames to buffer (1 second at 30fps)
+    static let preTriggerFrames = 30
+    /// Post-trigger frames to record (2 seconds at 30fps)
+    static let postTriggerFrames = 60
+    /// Total buffer size including safety margin
+    static let totalBufferSize = preTriggerFrames + postTriggerFrames + 2
+}
+
+// Structure to hold copied pixel buffer and its timestamp
+private struct BufferedFrame {
+    let pixelBuffer: CVPixelBuffer
+    let timestamp: CMTime
+}
 
 class VideoWriter: ObservableObject {
     @Published var isReadyForTrigger = false
+    @Published var lastError: String?
     
     private var assetWriter: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
     private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
     private let writingQueue = DispatchQueue(label: "video.writing.queue")
     
-    private let bufferSize =  12 // 3 frames buffer
-    private var cyclicBuffer: [CMSampleBuffer] = []
+    // Custom pixel buffer pool to avoid fighting with AVFoundation's internal pool
+    private var pixelBufferPool: CVPixelBufferPool?
+    private var poolAttributes: [String: Any] = [:]
+    private var pixelBufferAttributes: [String: Any] = [:]
+    
+    private let preTriggerSize = FrameBufferConstants.preTriggerFrames
+    private var preTriggerBuffer: [BufferedFrame] = []
+    private var postTriggerBuffer: [BufferedFrame] = []
     private var cameraStartTime: Date?
     private var isWriting = false
+    private var isCollectingPostTrigger = false
+    private var postTriggerCount = 0
+    
+    // Video dimensions - will be set from first frame
+    private var videoWidth: Int = 1920
+    private var videoHeight: Int = 1080
+    private var pixelFormat: OSType = kCVPixelFormatType_32BGRA
     
     func startCamera() {
+        cleanup()
         cameraStartTime = Date()
-        cyclicBuffer.removeAll()
         isReadyForTrigger = false
-        isWriting = false
         print("🎥 Camera started - filling buffer")
     }
     
     func triggerRecording() {
-        guard isReadyForTrigger, cyclicBuffer.count == bufferSize else {
-            print("⚠️ Not ready - buffer has \(cyclicBuffer.count)/\(bufferSize) frames")
+        guard !isWriting else {
+            print("⚠️ Cannot trigger - currently writing previous recording")
             return
         }
         
-        print("🎬 Trigger pressed - saving \(cyclicBuffer.count) frames")
+        guard !isCollectingPostTrigger else {
+            print("⚠️ Cannot trigger - already collecting post-trigger frames")
+            return
+        }
+        
+        guard isReadyForTrigger, preTriggerBuffer.count == preTriggerSize else {
+            print("⚠️ Not ready - buffer has \(preTriggerBuffer.count)/\(preTriggerSize) frames")
+            return
+        }
+        
+        print("🎬 Trigger pressed - collecting post-trigger frames")
         writingQueue.async { [weak self] in
-            self?.writeBufferedFrames()
+            guard let self = self else { return }
+            self.isCollectingPostTrigger = true
+            self.postTriggerBuffer.removeAll()
+            self.postTriggerCount = 0
+            print("✅ Starting post-trigger collection phase")
         }
     }
     
@@ -44,37 +88,78 @@ class VideoWriter: ObservableObject {
         writingQueue.async { [weak self] in
             guard let self = self else { return }
             
-            // Don't add frames while writing to prevent race conditions
+            // Don't add frames while writing final video
             if self.isWriting {
                 print("⏸️ Skipping frame - currently writing")
                 return
             }
             
-            // Create a copy to ensure the buffer is retained
-            guard let bufferCopy = createCMSampleBufferCopy(sampleBuffer) else {
-                print("⚠️ Failed to create buffer copy")
+            // Extract pixel buffer and timestamp from sample buffer
+            guard let sourcePixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+                print("⚠️ Failed to get pixel buffer from sample buffer")
                 return
             }
             
-            let frameIndex = self.cyclicBuffer.count
-            self.cyclicBuffer.append(bufferCopy)
-            print("📦 Buffer count: \(self.cyclicBuffer.count)/\(self.bufferSize), adding frame at index: \(frameIndex)")
+            let timestamp = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
             
-            // Keep only last 15 frames
-            if self.cyclicBuffer.count > self.bufferSize {
-                self.cyclicBuffer.removeFirst()
-                print("🗑️ Removed oldest frame, now starts at index 0")
+            // Initialize pool dimensions from first frame if needed
+            if self.pixelBufferPool == nil {
+                let width = CVPixelBufferGetWidth(sourcePixelBuffer)
+                let height = CVPixelBufferGetHeight(sourcePixelBuffer)
+                let format = CVPixelBufferGetPixelFormatType(sourcePixelBuffer)
+                
+                self.videoWidth = width
+                self.videoHeight = height
+                self.pixelFormat = format
+                
+                if !self.createPixelBufferPool(width: width, height: height, format: format) {
+                    print("❌ Failed to create pixel buffer pool")
+                    return
+                }
+                print("✅ Created pixel buffer pool: \(width)x\(height), format: \(format)")
             }
             
-            // Set ready when buffer is full
-            if self.cyclicBuffer.count == self.bufferSize {
-                if let startTime = self.cameraStartTime {
-                    let elapsed = Date().timeIntervalSince(startTime)
-                    if elapsed >= 0.5 {  // 0.5 seconds minimum
-                        if !self.isReadyForTrigger {
-                            DispatchQueue.main.async {
-                                self.isReadyForTrigger = true
-                                print("✅ Ready for trigger")
+            // Create a copy using our custom pool and manual memcpy
+            guard let copiedBuffer = self.copyPixelBuffer(sourcePixelBuffer) else {
+                print("⚠️ Failed to copy pixel buffer")
+                return
+            }
+            
+            let bufferedFrame = BufferedFrame(pixelBuffer: copiedBuffer, timestamp: timestamp)
+            
+            if self.isCollectingPostTrigger {
+                // Handle post-trigger frame collection
+                self.postTriggerBuffer.append(bufferedFrame)
+                self.postTriggerCount += 1
+                print("📦 Post-trigger frame \(self.postTriggerCount)/\(FrameBufferConstants.postTriggerFrames)")
+                
+                // If we have all post-trigger frames, start writing complete video
+                if self.postTriggerCount >= FrameBufferConstants.postTriggerFrames {
+                    self.isCollectingPostTrigger = false
+                    self.writeCompleteRecording()
+                }
+            } else {
+                // Handle pre-trigger buffer
+                self.preTriggerBuffer.append(bufferedFrame)
+                print("📦 Pre-trigger buffer: \(self.preTriggerBuffer.count)/\(self.preTriggerSize)")
+                
+                // Keep only required pre-trigger frames
+                if self.preTriggerBuffer.count > self.preTriggerSize {
+                    let removedFrame = self.preTriggerBuffer.removeFirst()
+                    CVPixelBufferUnlockBaseAddress(removedFrame.pixelBuffer, .readOnly)
+                    print("🗑️ Removed oldest pre-trigger frame")
+                }
+                
+                // Set ready when pre-trigger buffer is full
+                if self.preTriggerBuffer.count == self.preTriggerSize {
+                    if let startTime = self.cameraStartTime {
+                        let elapsed = Date().timeIntervalSince(startTime)
+                        if elapsed >= 0.5 {  // 0.5 seconds minimum
+                            if !self.isReadyForTrigger {
+                                DispatchQueue.main.async {
+                                    self.isReadyForTrigger = true
+                                    print("✅ Ready for trigger")
+                                }
                             }
                         }
                     }
@@ -83,16 +168,17 @@ class VideoWriter: ObservableObject {
         }
     }
     
-    private func writeBufferedFrames() {
-        guard cyclicBuffer.count == bufferSize else { return }
-        
+    private func writeCompleteRecording() {
         // Mark as writing to prevent buffer modifications
         isWriting = true
         
-        // Take a snapshot of the buffer to avoid race conditions
-        let buffersToWrite = cyclicBuffer
+        // Take snapshots of buffers to prevent race conditions
+        let preBufferSnapshot = Array(preTriggerBuffer)
+        let postBufferSnapshot = Array(postTriggerBuffer)
         
-        print("🎬 Writing snapshot of \(buffersToWrite.count) frames")
+        // Combine pre and post trigger frames
+        let buffersToWrite = preBufferSnapshot + postBufferSnapshot
+        print("🎬 Writing complete recording: \(buffersToWrite.count) frames (\(preTriggerBuffer.count) pre + \(postTriggerBuffer.count) post)")
         
         // Create filename
         let timestamp = DateFormatter().apply {
@@ -109,8 +195,8 @@ class VideoWriter: ObservableObject {
             
             let videoSettings: [String: Any] = [
                 AVVideoCodecKey: AVVideoCodecType.h264,
-                AVVideoWidthKey: 1920,
-                AVVideoHeightKey: 1080,
+                AVVideoWidthKey: videoWidth,
+                AVVideoHeightKey: videoHeight,
                 AVVideoCompressionPropertiesKey: [
                     AVVideoAverageBitRateKey: 5_000_000
                 ]
@@ -123,21 +209,24 @@ class VideoWriter: ObservableObject {
             let adaptor = AVAssetWriterInputPixelBufferAdaptor(
                 assetWriterInput: videoInput!,
                 sourcePixelBufferAttributes: [
-                    kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA,
-                    kCVPixelBufferWidthKey as String: 1920,
-                    kCVPixelBufferHeightKey as String: 1080
+                    kCVPixelBufferPixelFormatTypeKey as String: pixelFormat,
+                    kCVPixelBufferWidthKey as String: videoWidth,
+                    kCVPixelBufferHeightKey as String: videoHeight
                 ]
             )
+            self.adaptor = adaptor
             
             guard assetWriter!.canAdd(videoInput!) else {
                 print("❌ Cannot add video input")
+                isWriting = false
                 return
             }
             assetWriter!.add(videoInput!)
             
             // Write frames
             guard assetWriter!.startWriting() else {
-                print("❌ Cannot start writing")
+                print("❌ Cannot start writing: \(assetWriter?.error?.localizedDescription ?? "unknown error")")
+                isWriting = false
                 return
             }
             
@@ -150,23 +239,17 @@ class VideoWriter: ObservableObject {
             print("📝 Writing \(buffersToWrite.count) frames from buffer")
             
             // Write all frames synchronously since expectsMediaDataInRealTime = false
-            for (index, sampleBuffer) in buffersToWrite.enumerated() {
+            for (index, bufferedFrame) in buffersToWrite.enumerated() {
                 // Wait for input to be ready
                 while !videoInput!.isReadyForMoreMediaData {
                     Thread.sleep(forTimeInterval: 0.001) // Wait 1ms
                 }
                 
-                print("🔍 Extracting pixel buffer for frame \(index)...")
-                guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
-                    print("❌ Failed to get pixel buffer for frame \(index)")
-                    print("   Sample buffer valid: \(sampleBuffer)")
-                    print("   Has attachments: \(CMSampleBufferGetNumSamples(sampleBuffer)) samples")
-                    continue
-                }
-                
+                let pixelBuffer = bufferedFrame.pixelBuffer
                 let width = CVPixelBufferGetWidth(pixelBuffer)
                 let height = CVPixelBufferGetHeight(pixelBuffer)
-                print("   Got pixel buffer: \(width)x\(height)")
+                
+                print("🔍 Writing frame \(index): \(width)x\(height)")
                 
                 let success = adaptor.append(pixelBuffer, withPresentationTime: currentTime)
                 if success {
@@ -182,41 +265,175 @@ class VideoWriter: ObservableObject {
             
             videoInput!.markAsFinished()
             
-            // Wait for writer to finish asynchronously
-            let finishGroup = DispatchGroup()
-            finishGroup.enter()
-            
-            assetWriter!.finishWriting { [framesWritten] in
-                if let error = self.assetWriter?.error {
-                    print("❌ Video writer error: \(error)")
-                } else {
-                    print("✅ Video saved: \(videoURL.path) with \(framesWritten) frames")
+            // Finish writing asynchronously - don't block the queue
+            assetWriter!.finishWriting { [weak self, framesWritten] in
+                guard let self = self else { return }
+                
+                DispatchQueue.main.async {
+                    if let error = self.assetWriter?.error {
+                        print("❌ Video writer error: \(error)")
+                    } else {
+                        print("✅ Video saved: \(videoURL.path) with \(framesWritten) frames")
+                    }
+                    
+                    self.isWriting = false
+                    self.isReadyForTrigger = true // Reset ready state for next recording
                 }
-                self.isWriting = false
-                finishGroup.leave()
             }
             
-            finishGroup.wait()
-            
         } catch {
-            print("❌ Error: \(error)")
+            let errorMsg = "❌ Error writing video: \(error.localizedDescription)"
+            print(errorMsg)
             isWriting = false
+            DispatchQueue.main.async { [weak self] in
+                self?.lastError = errorMsg
+                self?.isReadyForTrigger = true
+            }
         }
     }
     
-    // Helper function to create a copy of CMSampleBuffer
-    private func createCMSampleBufferCopy(_ sampleBuffer: CMSampleBuffer) -> CMSampleBuffer? {
-        var bufferCopy: CMSampleBuffer?
-        let status = CMSampleBufferCreateCopy(allocator: kCFAllocatorDefault, sampleBuffer: sampleBuffer, sampleBufferOut: &bufferCopy)
-        if status != noErr {
-            print("❌ Failed to create sample buffer copy: \(status)")
+    // MARK: - Pixel Buffer Pool Management
+    
+    /// Creates a custom CVPixelBufferPool to avoid fighting with AVFoundation's internal pool
+    private func createPixelBufferPool(width: Int, height: Int, format: OSType) -> Bool {
+        // Pool attributes - specify minimum buffer count
+        poolAttributes = [
+            kCVPixelBufferPoolMinimumBufferCountKey as String: FrameBufferConstants.totalBufferSize
+        ]
+        
+        // Pixel buffer attributes
+        pixelBufferAttributes = [
+            kCVPixelBufferPixelFormatTypeKey as String: format,
+            kCVPixelBufferWidthKey as String: width,
+            kCVPixelBufferHeightKey as String: height,
+            kCVPixelBufferIOSurfacePropertiesKey as String: [:] as [String: Any],
+            kCVPixelBufferMetalCompatibilityKey as String: true
+        ]
+        
+        let status = CVPixelBufferPoolCreate(
+            kCFAllocatorDefault,
+            poolAttributes as CFDictionary,
+            pixelBufferAttributes as CFDictionary,
+            &pixelBufferPool
+        )
+        
+        if status != kCVReturnSuccess {
+            print("❌ Failed to create pixel buffer pool: \(status)")
+            return false
+        }
+        
+        return true
+    }
+    
+    private func cleanup() {
+        // Clear pre-trigger buffer and ensure pixel buffers are released
+        for frame in preTriggerBuffer {
+            CVPixelBufferUnlockBaseAddress(frame.pixelBuffer, .readOnly)
+        }
+        preTriggerBuffer.removeAll()
+        
+        // Clear post-trigger buffer and ensure pixel buffers are released
+        for frame in postTriggerBuffer {
+            CVPixelBufferUnlockBaseAddress(frame.pixelBuffer, .readOnly)
+        }
+        postTriggerBuffer.removeAll()
+        
+        // Reset state
+        isCollectingPostTrigger = false
+        postTriggerCount = 0
+        isWriting = false
+        
+        // Clear pixel buffer pool
+        pixelBufferPool = nil
+    }
+    
+    deinit {
+        cleanup()
+    }
+    
+    /// Copies pixel buffer using manual memcpy from our custom pool
+    private func copyPixelBuffer(_ sourceBuffer: CVPixelBuffer) -> CVPixelBuffer? {
+        guard let pool = pixelBufferPool else {
+            print("❌ Pixel buffer pool not initialized")
             return nil
         }
-        return bufferCopy
+        
+        // Create a new pixel buffer from our custom pool
+        var destinationBuffer: CVPixelBuffer?
+        let poolStatus = CVPixelBufferPoolCreatePixelBuffer(
+            kCFAllocatorDefault,
+            pool,
+            &destinationBuffer
+        )
+        
+        guard poolStatus == kCVReturnSuccess, let destBuffer = destinationBuffer else {
+            print("❌ Failed to create pixel buffer from pool: \(poolStatus)")
+            return nil
+        }
+        
+        // Get dimensions
+        let width = CVPixelBufferGetWidth(sourceBuffer)
+        let height = CVPixelBufferGetHeight(sourceBuffer)
+        let sourceFormat = CVPixelBufferGetPixelFormatType(sourceBuffer)
+        let destFormat = CVPixelBufferGetPixelFormatType(destBuffer)
+        
+        guard sourceFormat == destFormat else {
+            print("❌ Format mismatch: source=\(sourceFormat), dest=\(destFormat)")
+            return nil
+        }
+        
+        // Lock both buffers for direct memory access
+        let lockFlags = CVPixelBufferLockFlags(rawValue: 0)
+        
+        guard CVPixelBufferLockBaseAddress(sourceBuffer, lockFlags) == kCVReturnSuccess else {
+            print("❌ Failed to lock source buffer")
+            return nil
+        }
+        
+        defer {
+            CVPixelBufferUnlockBaseAddress(sourceBuffer, lockFlags)
+        }
+        
+        guard CVPixelBufferLockBaseAddress(destBuffer, lockFlags) == kCVReturnSuccess else {
+            print("❌ Failed to lock destination buffer")
+            return nil
+        }
+        
+        // Get base addresses and bytes per row
+        let sourceBaseAddress = CVPixelBufferGetBaseAddress(sourceBuffer)
+        let destBaseAddress = CVPixelBufferGetBaseAddress(destBuffer)
+        let sourceBytesPerRow = CVPixelBufferGetBytesPerRow(sourceBuffer)
+        let destBytesPerRow = CVPixelBufferGetBytesPerRow(destBuffer)
+        
+        guard let srcAddr = sourceBaseAddress, let dstAddr = destBaseAddress else {
+            CVPixelBufferUnlockBaseAddress(destBuffer, lockFlags)
+            print("❌ Failed to get base addresses")
+            return nil
+        }
+        
+        // Calculate bytes per pixel (for 32BGRA it's 4 bytes)
+        let bytesPerPixel = 4
+        let bytesPerRow = width * bytesPerPixel
+        
+        // Copy row by row to handle potential row alignment differences
+        let minBytesPerRow = min(sourceBytesPerRow, destBytesPerRow)
+        let copyBytesPerRow = min(minBytesPerRow, bytesPerRow)
+        
+        for row in 0..<height {
+            let sourceRow = srcAddr.advanced(by: row * sourceBytesPerRow)
+            let destRow = dstAddr.advanced(by: row * destBytesPerRow)
+            memcpy(destRow, sourceRow, copyBytesPerRow)
+        }
+        
+        // Unlock destination buffer
+        CVPixelBufferUnlockBaseAddress(destBuffer, lockFlags)
+        
+        return destBuffer
     }
 }
 
-// Helper extension
+
+
 private extension DateFormatter {
     func apply(_ closure: (DateFormatter) -> Void) -> DateFormatter {
         closure(self)

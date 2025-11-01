@@ -18,7 +18,6 @@
 		CAMERA001 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAMERA000 /* CameraManager.swift */; };
 		FRAME001 /* FrameBufferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRAME000 /* FrameBufferManager.swift */; };
 		MODEL001 /* ModelProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODEL000 /* ModelProcessor.swift */; };
-
 		VIDEO001 /* VideoWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = VIDEO000 /* VideoWriter.swift */; };
 /* End PBXBuildFile section */
 
@@ -45,7 +44,6 @@
 		6975AD852EA9697600BD8D0E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		6975AD872EA9697800BD8D0E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6975AD892EA9697800BD8D0E /* line_length.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = line_length.entitlements; sourceTree = "<group>"; };
-		INFO000 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		6975AD8B2EA9697800BD8D0E /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		6975AD912EA9697900BD8D0E /* line&lengthTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "line&lengthTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6975AD952EA9697900BD8D0E /* line_lengthTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = line_lengthTests.swift; sourceTree = "<group>"; };
@@ -55,8 +53,8 @@
 		6975ADAF2EAA6ADA00BD8D0E /* best_model.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = best_model.mlpackage; sourceTree = "<group>"; };
 		CAMERA000 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		FRAME000 /* FrameBufferManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameBufferManager.swift; sourceTree = "<group>"; };
+		INFO000 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		MODEL000 /* ModelProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProcessor.swift; sourceTree = "<group>"; };
-
 		VIDEO000 /* VideoWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWriter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -115,7 +113,6 @@
 				MODEL000 /* ModelProcessor.swift */,
 				FRAME000 /* FrameBufferManager.swift */,
 				VIDEO000 /* VideoWriter.swift */,
-
 				6975AD872EA9697800BD8D0E /* Assets.xcassets */,
 				6975AD892EA9697800BD8D0E /* line_length.entitlements */,
 				INFO000 /* Info.plist */,
@@ -286,7 +283,6 @@
 				FRAME001 /* FrameBufferManager.swift in Sources */,
 				6975ADB02EAA6ADC00BD8D0E /* best_model.mlpackage in Sources */,
 				VIDEO001 /* VideoWriter.swift in Sources */,
-
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -446,20 +442,23 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"line&length/Preview Content\"";
-				DEVELOPMENT_TEAM = C2L9GKJ235;
+				DEVELOPMENT_TEAM = 9K9Q387VZD;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to capture video frames for CoreML model analysis and video recording.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "This app needs access to save videos to your Photos library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "This app needs access to save videos to your Photos library.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_NSCameraUsageDescription" = "This app needs access to the camera to capture video frames for CoreML model analysis and video recording.";
-				"INFOPLIST_KEY_NSPhotoLibraryUsageDescription" = "This app needs access to save videos to your Photos library.";
-				"INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription" = "This app needs access to save videos to your Photos library.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_UIStatusBarStyle = "";
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -469,7 +468,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros.line-length";
+				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros1.line-length";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -488,20 +487,23 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"line&length/Preview Content\"";
-				DEVELOPMENT_TEAM = C2L9GKJ235;
+				DEVELOPMENT_TEAM = 9K9Q387VZD;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "This app needs access to the camera to capture video frames for CoreML model analysis and video recording.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "This app needs access to save videos to your Photos library.";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "This app needs access to save videos to your Photos library.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
-				"INFOPLIST_KEY_NSCameraUsageDescription" = "This app needs access to the camera to capture video frames for CoreML model analysis and video recording.";
-				"INFOPLIST_KEY_NSPhotoLibraryUsageDescription" = "This app needs access to save videos to your Photos library.";
-				"INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription" = "This app needs access to save videos to your Photos library.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphonesimulator*]" = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UILaunchScreen_Generation[sdk=iphonesimulator*]" = YES;
-				INFOPLIST_KEY_UIStatusBarStyle = "";
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphoneos*]" = UIStatusBarStyleDefault;
 				"INFOPLIST_KEY_UIStatusBarStyle[sdk=iphonesimulator*]" = UIStatusBarStyleDefault;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -511,7 +513,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros.line-length";
+				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros1.line-length";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

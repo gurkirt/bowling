@@ -12,7 +12,7 @@ class FrameBufferManager: ObservableObject {
     @Published var isRecording = false
     
     private var frameBuffer: [CMSampleBuffer] = []
-    private var maxBufferSize: Int = 10 // 0.5 seconds at 30fps
+    private var maxBufferSize: Int = FrameBufferConstants.preTriggerFrames
     private let bufferQueue = DispatchQueue(label: "frame.buffer.queue")
     
     var onRecordingStart: (([CMSampleBuffer]) -> Void)?
@@ -35,7 +35,7 @@ class FrameBufferManager: ObservableObject {
             guard status == noErr, let copiedBuffer = newSampleBuffer else {
                 print("Failed to copy sample buffer")
                 return
-            }
+        }
             
             // Add to circular buffer
             self.frameBuffer.append(copiedBuffer)
@@ -58,12 +58,16 @@ class FrameBufferManager: ObservableObject {
         bufferQueue.async { [weak self] in
             guard let self = self else { return }
             
-            // Copy current buffer for recording
-            let recordingFrames = Array(self.frameBuffer)
-            
-            DispatchQueue.main.async {
-                self.isRecording = true
-                self.onRecordingStart?(recordingFrames)
+            // Copy pre-trigger frames from buffer
+            if self.frameBuffer.count == self.maxBufferSize {
+                let recordingFrames = Array(self.frameBuffer)
+                
+                DispatchQueue.main.async {
+                    self.isRecording = true
+                    self.onRecordingStart?(recordingFrames)
+                }
+            } else {
+                print("⚠️ Buffer not full for pre-trigger recording: \(self.frameBuffer.count)/\(self.maxBufferSize)")
             }
         }
     }
@@ -82,8 +86,19 @@ class FrameBufferManager: ObservableObject {
     func addRecordingFrame(_ sampleBuffer: CMSampleBuffer) {
         guard isRecording else { return }
         
-        // This method will be called by VideoWriter during recording
-        // to add frames to the ongoing recording
+        // Create a copy of the sample buffer
+        var newSampleBuffer: CMSampleBuffer?
+        let status = CMSampleBufferCreateCopy(allocator: kCFAllocatorDefault,
+                                            sampleBuffer: sampleBuffer,
+                                            sampleBufferOut: &newSampleBuffer)
+        
+        guard status == noErr, let copiedBuffer = newSampleBuffer else {
+            print("Failed to copy post-trigger sample buffer")
+            return
+        }
+        
+        // Send the frame to the video writer through callback
+        onRecordingStart?([copiedBuffer])
     }
     
     func clearBuffer() {
