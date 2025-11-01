@@ -11,43 +11,62 @@ class FrameBufferManager: ObservableObject {
     @Published var bufferSize: Int = 0
     @Published var isRecording = false
     
-    private var frameBuffer: [CMSampleBuffer] = []
-    private var maxBufferSize: Int = FrameBufferConstants.preTriggerFrames
+    // Circular buffer implementation
+    private var frameBuffer: [CMSampleBuffer?]  // Using optional to explicitly handle nil cases
+    private var writeIndex: Int = 0             // Next position to write
+    private var readIndex: Int = 0              // Next position to read
+    private var currentBufferCount: Int = 0     // Current number of valid frames
+    private let maxBufferSize: Int = FrameBufferConstants.preTriggerFrames
     private let bufferQueue = DispatchQueue(label: "frame.buffer.queue")
     
     var onRecordingStart: (([CMSampleBuffer]) -> Void)?
     var onRecordingStop: (() -> Void)?
     
     init() {
-        bufferSize = maxBufferSize
+        // Pre-allocate buffer with exact size to avoid resizing
+        frameBuffer = Array(repeating: nil, count: maxBufferSize)
+        bufferSize = 0
     }
     
     func addFrame(_ sampleBuffer: CMSampleBuffer) {
         bufferQueue.async { [weak self] in
             guard let self = self else { return }
             
-            // Create a copy of the sample buffer to store in buffer
-            var newSampleBuffer: CMSampleBuffer?
-            let status = CMSampleBufferCreateCopy(allocator: kCFAllocatorDefault,
-                                                sampleBuffer: sampleBuffer,
-                                                sampleBufferOut: &newSampleBuffer)
-            
-            guard status == noErr, let copiedBuffer = newSampleBuffer else {
-                print("Failed to copy sample buffer")
-                return
-        }
-            
-            // Add to circular buffer
-            self.frameBuffer.append(copiedBuffer)
-            
-            // Maintain buffer size
-            if self.frameBuffer.count > self.maxBufferSize {
-                let removedBuffer = self.frameBuffer.removeFirst()
-                CMSampleBufferInvalidate(removedBuffer)
-            }
-            
-            DispatchQueue.main.async {
-                self.bufferSize = self.frameBuffer.count
+            // Only copy if we need this frame (buffer not full or in recording state)
+            if self.currentBufferCount < self.maxBufferSize || self.isRecording {
+                // If there's an existing buffer, release it properly
+                if let oldBuffer = self.frameBuffer[self.writeIndex] {
+                    self.frameBuffer[self.writeIndex] = nil
+                    CMSampleBufferInvalidate(oldBuffer)
+                }
+                
+                // Create a proper copy of the buffer
+                var copy: CMSampleBuffer?
+                CMSampleBufferCreateCopy(allocator: kCFAllocatorDefault,
+                                       sampleBuffer: sampleBuffer,
+                                       sampleBufferOut: &copy)
+                
+                if let copy = copy {
+                    self.frameBuffer[self.writeIndex] = copy
+                }
+                
+                // Update write position
+                self.writeIndex = (self.writeIndex + 1) % self.maxBufferSize
+                
+                // Update buffer count
+                if self.currentBufferCount < self.maxBufferSize {
+                    self.currentBufferCount += 1
+                } else {
+                    // When buffer is full, move read index as well
+                    self.readIndex = (self.readIndex + 1) % self.maxBufferSize
+                }
+                
+                // Update UI less frequently to reduce overhead
+                if self.currentBufferCount % 5 == 0 {
+                    DispatchQueue.main.async {
+                        self.bufferSize = self.currentBufferCount
+                    }
+                }
             }
         }
     }
@@ -58,16 +77,35 @@ class FrameBufferManager: ObservableObject {
         bufferQueue.async { [weak self] in
             guard let self = self else { return }
             
-            // Copy pre-trigger frames from buffer
-            if self.frameBuffer.count == self.maxBufferSize {
-                let recordingFrames = Array(self.frameBuffer)
-                
+            // Only start if buffer is full
+            guard self.currentBufferCount == self.maxBufferSize else {
+                return
+            }
+            
+            // Use direct buffer reference instead of copying
+            var recordingFrames: [CMSampleBuffer] = []
+            recordingFrames.reserveCapacity(self.maxBufferSize)
+            
+            var index = self.readIndex
+            for _ in 0..<self.maxBufferSize {
+                if let buffer = self.frameBuffer[index] {
+                    // Create a proper copy of the buffer
+                    var copy: CMSampleBuffer?
+                    CMSampleBufferCreateCopy(allocator: kCFAllocatorDefault,
+                                           sampleBuffer: buffer,
+                                           sampleBufferOut: &copy)
+                    if let copy = copy {
+                        recordingFrames.append(copy)
+                    }
+                }
+                index = (index + 1) % self.maxBufferSize
+            }
+            
+            if !recordingFrames.isEmpty {
                 DispatchQueue.main.async {
                     self.isRecording = true
                     self.onRecordingStart?(recordingFrames)
                 }
-            } else {
-                print("⚠️ Buffer not full for pre-trigger recording: \(self.frameBuffer.count)/\(self.maxBufferSize)")
             }
         }
     }
@@ -86,35 +124,35 @@ class FrameBufferManager: ObservableObject {
     func addRecordingFrame(_ sampleBuffer: CMSampleBuffer) {
         guard isRecording else { return }
         
-        // Create a copy of the sample buffer
-        var newSampleBuffer: CMSampleBuffer?
-        let status = CMSampleBufferCreateCopy(allocator: kCFAllocatorDefault,
-                                            sampleBuffer: sampleBuffer,
-                                            sampleBufferOut: &newSampleBuffer)
+        // Create a proper copy
+        var copy: CMSampleBuffer?
+        CMSampleBufferCreateCopy(allocator: kCFAllocatorDefault,
+                               sampleBuffer: sampleBuffer,
+                               sampleBufferOut: &copy)
         
-        guard status == noErr, let copiedBuffer = newSampleBuffer else {
-            print("Failed to copy post-trigger sample buffer")
-            return
+        if let copy = copy {
+            // Send the frame directly
+            onRecordingStart?([copy])
         }
-        
-        // Send the frame to the video writer through callback
-        onRecordingStart?([copiedBuffer])
     }
     
     func clearBuffer() {
         bufferQueue.async { [weak self] in
             guard let self = self else { return }
             
-            // Invalidate all buffered sample buffers
-            for buffer in self.frameBuffer {
-                CMSampleBufferInvalidate(buffer)
+            // Clear and invalidate buffers in one pass
+            self.frameBuffer.enumerated().forEach { (i, buffer) in
+                if let buffer = buffer {
+                    CMSampleBufferInvalidate(buffer)
+                }
+                self.frameBuffer[i] = nil
             }
             
-            self.frameBuffer.removeAll()
-            
-            DispatchQueue.main.async {
-                self.bufferSize = 0
-            }
+            // Reset state
+            self.writeIndex = 0
+            self.readIndex = 0
+            self.currentBufferCount = 0
+            self.bufferSize = 0  // Update UI directly since we're cleaning up
         }
     }
     
