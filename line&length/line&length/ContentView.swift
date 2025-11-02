@@ -14,11 +14,13 @@ import Photos
 struct ContentView: View {
     @StateObject private var cameraManager = CameraManager()
     @StateObject private var videoWriter = VideoWriter()
+    @StateObject private var modelProcessor = ModelProcessor()
     
     @State private var showingVideos = false
     @State private var savedVideos: [URL] = []
+    @State private var selectedFrameRate: FrameRateOption = RecordingConfiguration.default.frameRate
     @State private var showingVideoReadyBanner = false
-    @State private var lastSavedVideoURL: URL?
+    @State private var isAutoTriggerEnabled = true
     
     var body: some View {
         NavigationView {
@@ -79,6 +81,29 @@ struct ContentView: View {
                         }
                         .font(.caption)
                     }
+
+                    if isAutoTriggerEnabled, let uiImage = modelProcessor.previewImage {
+                        HStack(spacing: 12) {
+                            Image(uiImage: uiImage)
+                                .resizable()
+                                .frame(width: 80, height: 80)
+                                .cornerRadius(8)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.blue, lineWidth: 1)
+                                )
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("Auto Trigger Preview")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Text(String(format: "Action: %.2f", modelProcessor.lastActionScore))
+                                    .font(.caption2)
+                                Text(String(format: "No Action: %.2f", modelProcessor.lastNoActionScore))
+                                    .font(.caption2)
+                            }
+                            Spacer()
+                        }
+                    }
                 }
                 .padding()
                 .background(Color.gray.opacity(0.1))
@@ -113,50 +138,61 @@ struct ContentView: View {
                     .disabled(!cameraManager.isSessionRunning || !videoWriter.isReadyForTrigger)
                     
                     // Secondary Controls
-                    HStack(spacing: 20) {
-                        Button(action: {
-                            if cameraManager.isSessionRunning {
-                                cameraManager.stopSession()
-                            } else {
-                                // Ensure proper initialization order
-                                setupCameraFrameHandler()
-                                videoWriter.startCamera()
-                                cameraManager.startSession()
-                            }
-                        }) {
-                            HStack {
-                                Image(systemName: cameraManager.isSessionRunning ? "stop.fill" : "play.fill")
-                                Text(cameraManager.isSessionRunning ? "Stop Camera" : "Start Camera")
-                            }
-                            .padding()
-                            .background(cameraManager.isSessionRunning ? Color.orange : Color.blue)
-                            .foregroundColor(.white)
-                            .cornerRadius(10)
-                        }
-                        
+                    HStack(spacing: 12) {
                         Button(action: {
                             loadSavedVideos()
                             showingVideos = true
                         }) {
-                            HStack {
+                            HStack(spacing: 6) {
                                 Image(systemName: "video.fill")
                                 Text("Videos")
                             }
-                            .padding()
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 14)
                             .background(Color.purple)
                             .foregroundColor(.white)
-                            .cornerRadius(10)
+                            .cornerRadius(12)
+                        }
+                        
+                        Button(action: toggleFrameRate) {
+                            HStack(spacing: 6) {
+                                Text(selectedFrameRate.displayName)
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                    .font(.subheadline)
+                            }
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 14)
+                            .background(Color.blue)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+
+                        Button(action: {
+                            isAutoTriggerEnabled.toggle()
+                            if isAutoTriggerEnabled && selectedFrameRate != .fps60 {
+                                selectedFrameRate = .fps60
+                                applyRecordingConfiguration()
+                            }
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "bolt.badge.automatic")
+                                    .font(.subheadline)
+                                Text(isAutoTriggerEnabled ? "Auto" : "Manual")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                            }
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 14)
+                            .background(isAutoTriggerEnabled ? Color.green : Color.gray)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
                         }
                     }
                 }
                 
                 Spacer()
-                
-                // Hint text
-                Text("💡 Tap 'Videos' button to view and play saved recordings")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal)
             }
             .padding()
             .navigationTitle("Trigger Recorder")
@@ -197,6 +233,7 @@ struct ContentView: View {
                 
                 // Set up frame handler before starting camera
                 setupCameraFrameHandler()
+                applyRecordingConfiguration()
                 
                 // Start camera and load videos
                 videoWriter.startCamera()
@@ -209,6 +246,21 @@ struct ContentView: View {
                 
                 // Start refresh timer for video list
                 startVideoListRefreshTimer()
+
+                // Wire model trigger to writer
+                modelProcessor.onTriggerDetected = { [weak videoWriter] in
+                    videoWriter?.triggerRecording()
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                        loadSavedVideos()
+                        showingVideoReadyBanner = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                            withAnimation { showingVideoReadyBanner = false }
+                        }
+                    }
+                }
+            }
+            .onChange(of: selectedFrameRate) { _ in
+                applyRecordingConfiguration()
             }
             .sheet(isPresented: $showingVideos) {
                 VideoListView(videos: savedVideos, onVideoDeleted: {
@@ -218,10 +270,24 @@ struct ContentView: View {
         }
     }
     
+    private func toggleFrameRate() {
+        selectedFrameRate = selectedFrameRate == .fps30 ? .fps60 : .fps30
+    }
+
+    private func applyRecordingConfiguration() {
+        let configuration = RecordingConfiguration(resolution: .hd1080,
+                                                   frameRate: selectedFrameRate)
+        cameraManager.updateConfiguration(configuration)
+        videoWriter.updateConfiguration(configuration)
+    }
+    
     private func setupCameraFrameHandler() {
-        cameraManager.setFrameHandler { [weak videoWriter] sampleBuffer in
+        cameraManager.setFrameHandler { [weak videoWriter, weak modelProcessor] sampleBuffer in
             // Using weak reference to avoid retain cycles
             videoWriter?.addFrame(sampleBuffer)
+            if self.isAutoTriggerEnabled {
+                modelProcessor?.processFrame(sampleBuffer)
+            }
         }
     }
     

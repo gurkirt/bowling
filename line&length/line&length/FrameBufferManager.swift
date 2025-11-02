@@ -16,7 +16,7 @@ class FrameBufferManager: ObservableObject {
     private var writeIndex: Int = 0             // Next position to write
     private var readIndex: Int = 0              // Next position to read
     private var currentBufferCount: Int = 0     // Current number of valid frames
-    private let maxBufferSize: Int = FrameBufferConstants.preTriggerFrames
+    private let maxBufferSize: Int = RecordingConfiguration.default.preTriggerFrameCount
     private let bufferQueue = DispatchQueue(label: "frame.buffer.queue")
     
     var onRecordingStart: (([CMSampleBuffer]) -> Void)?

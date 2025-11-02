@@ -14,11 +14,12 @@
 		6975AD962EA9697900BD8D0E /* line_lengthTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6975AD952EA9697900BD8D0E /* line_lengthTests.swift */; };
 		6975ADA02EA9697900BD8D0E /* line_lengthUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6975AD9F2EA9697900BD8D0E /* line_lengthUITests.swift */; };
 		6975ADA22EA9697900BD8D0E /* line_lengthUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6975ADA12EA9697900BD8D0E /* line_lengthUITestsLaunchTests.swift */; };
-		6975ADB02EAA6ADC00BD8D0E /* best_model.mlpackage in Sources */ = {isa = PBXBuildFile; fileRef = 6975ADAF2EAA6ADA00BD8D0E /* best_model.mlpackage */; };
+		6975ADB02EAA6ADC00BD8D0E /* best_model.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 6975ADAF2EAA6ADA00BD8D0E /* best_model.mlpackage */; };
 		CAMERA001 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAMERA000 /* CameraManager.swift */; };
 		FRAME001 /* FrameBufferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRAME000 /* FrameBufferManager.swift */; };
 		MODEL001 /* ModelProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODEL000 /* ModelProcessor.swift */; };
 		VIDEO001 /* VideoWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = VIDEO000 /* VideoWriter.swift */; };
+		RECORD001 /* RecordingConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = RECORD000 /* RecordingConfiguration.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,6 +57,7 @@
 		INFO000 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		MODEL000 /* ModelProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProcessor.swift; sourceTree = "<group>"; };
 		VIDEO000 /* VideoWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWriter.swift; sourceTree = "<group>"; };
+		RECORD000 /* RecordingConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingConfiguration.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -113,6 +115,7 @@
 				MODEL000 /* ModelProcessor.swift */,
 				FRAME000 /* FrameBufferManager.swift */,
 				VIDEO000 /* VideoWriter.swift */,
+				RECORD000 /* RecordingConfiguration.swift */,
 				6975AD872EA9697800BD8D0E /* Assets.xcassets */,
 				6975AD892EA9697800BD8D0E /* line_length.entitlements */,
 				INFO000 /* Info.plist */,
@@ -252,6 +255,7 @@
 			files = (
 				6975AD8C2EA9697800BD8D0E /* Preview Assets.xcassets in Resources */,
 				6975AD882EA9697800BD8D0E /* Assets.xcassets in Resources */,
+				6975ADB02EAA6ADC00BD8D0E /* best_model.mlpackage in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -281,8 +285,8 @@
 				CAMERA001 /* CameraManager.swift in Sources */,
 				MODEL001 /* ModelProcessor.swift in Sources */,
 				FRAME001 /* FrameBufferManager.swift in Sources */,
-				6975ADB02EAA6ADC00BD8D0E /* best_model.mlpackage in Sources */,
 				VIDEO001 /* VideoWriter.swift in Sources */,
+				RECORD001 /* RecordingConfiguration.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

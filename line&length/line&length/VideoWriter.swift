@@ -8,16 +8,6 @@
 import AVFoundation
 import CoreVideo
 
-// Shared constants for frame buffering
-enum FrameBufferConstants {
-    /// Pre-trigger frames to buffer (1 second at 30fps)
-    static let preTriggerFrames = 30
-    /// Post-trigger frames to record (2 seconds at 30fps)
-    static let postTriggerFrames = 60
-    /// Total buffer size including safety margin
-    static let totalBufferSize = preTriggerFrames + postTriggerFrames + 2
-}
-
 // Structure to hold copied pixel buffer and its timestamp
 private struct BufferedFrame {
     let pixelBuffer: CVPixelBuffer
@@ -27,6 +17,11 @@ private struct BufferedFrame {
 class VideoWriter: ObservableObject {
     @Published var isReadyForTrigger = false
     @Published var lastError: String?
+    
+    private var recordingConfiguration = RecordingConfiguration.default
+    private var preTriggerTargetCount: Int { recordingConfiguration.preTriggerFrameCount }
+    private var postTriggerTargetCount: Int { recordingConfiguration.postTriggerFrameCount }
+    private var totalBufferCapacity: Int { recordingConfiguration.totalBufferSize }
     
     private var assetWriter: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
@@ -38,7 +33,6 @@ class VideoWriter: ObservableObject {
     private var poolAttributes: [String: Any] = [:]
     private var pixelBufferAttributes: [String: Any] = [:]
     
-    private let preTriggerSize = FrameBufferConstants.preTriggerFrames
     private var preTriggerBuffer: [BufferedFrame] = []
     private var postTriggerBuffer: [BufferedFrame] = []
     private var cameraStartTime: Date?
@@ -55,7 +49,28 @@ class VideoWriter: ObservableObject {
         cleanup()
         cameraStartTime = Date()
         isReadyForTrigger = false
-        print("🎥 Camera started - filling buffer")
+    }
+    
+    func updateConfiguration(_ configuration: RecordingConfiguration) {
+        writingQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.recordingConfiguration = configuration
+            self.cleanup()
+            self.pixelBufferPool = nil
+            self.poolAttributes.removeAll()
+            self.pixelBufferAttributes.removeAll()
+            self.cameraStartTime = Date()
+            let dimensions = configuration.resolution.dimensions
+            self.videoWidth = dimensions.width
+            self.videoHeight = dimensions.height
+            self.pixelFormat = kCVPixelFormatType_32BGRA
+            self.isCollectingPostTrigger = false
+            self.postTriggerCount = 0
+            self.isWriting = false
+            DispatchQueue.main.async {
+                self.isReadyForTrigger = false
+            }
+        }
     }
     
     func triggerRecording() {
@@ -69,18 +84,16 @@ class VideoWriter: ObservableObject {
             return
         }
         
-        guard isReadyForTrigger, preTriggerBuffer.count == preTriggerSize else {
-            print("⚠️ Not ready - buffer has \(preTriggerBuffer.count)/\(preTriggerSize) frames")
+        guard isReadyForTrigger, preTriggerBuffer.count == preTriggerTargetCount else {
+            print("⚠️ Not ready - buffer has \(preTriggerBuffer.count)/\(preTriggerTargetCount) frames")
             return
         }
         
-        print("🎬 Trigger pressed - collecting post-trigger frames")
         writingQueue.async { [weak self] in
             guard let self = self else { return }
             self.isCollectingPostTrigger = true
             self.postTriggerBuffer.removeAll()
             self.postTriggerCount = 0
-            print("✅ Starting post-trigger collection phase")
         }
     }
     
@@ -89,10 +102,7 @@ class VideoWriter: ObservableObject {
             guard let self = self else { return }
             
             // Don't add frames while writing final video
-            if self.isWriting {
-                print("⏸️ Skipping frame - currently writing")
-                return
-            }
+            if self.isWriting { return }
             
             // Extract pixel buffer and timestamp from sample buffer
             guard let sourcePixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
@@ -116,7 +126,6 @@ class VideoWriter: ObservableObject {
                     print("❌ Failed to create pixel buffer pool")
                     return
                 }
-                print("✅ Created pixel buffer pool: \(width)x\(height), format: \(format)")
             }
             
             // Create a copy using our custom pool and manual memcpy
@@ -131,34 +140,30 @@ class VideoWriter: ObservableObject {
                 // Handle post-trigger frame collection
                 self.postTriggerBuffer.append(bufferedFrame)
                 self.postTriggerCount += 1
-                print("📦 Post-trigger frame \(self.postTriggerCount)/\(FrameBufferConstants.postTriggerFrames)")
                 
                 // If we have all post-trigger frames, start writing complete video
-                if self.postTriggerCount >= FrameBufferConstants.postTriggerFrames {
+                if self.postTriggerCount >= self.postTriggerTargetCount {
                     self.isCollectingPostTrigger = false
                     self.writeCompleteRecording()
                 }
             } else {
                 // Handle pre-trigger buffer
                 self.preTriggerBuffer.append(bufferedFrame)
-                print("📦 Pre-trigger buffer: \(self.preTriggerBuffer.count)/\(self.preTriggerSize)")
                 
                 // Keep only required pre-trigger frames
-                if self.preTriggerBuffer.count > self.preTriggerSize {
+                if self.preTriggerBuffer.count > self.preTriggerTargetCount {
                     let removedFrame = self.preTriggerBuffer.removeFirst()
                     CVPixelBufferUnlockBaseAddress(removedFrame.pixelBuffer, .readOnly)
-                    print("🗑️ Removed oldest pre-trigger frame")
                 }
                 
                 // Set ready when pre-trigger buffer is full
-                if self.preTriggerBuffer.count == self.preTriggerSize {
+                if self.preTriggerBuffer.count == self.preTriggerTargetCount {
                     if let startTime = self.cameraStartTime {
                         let elapsed = Date().timeIntervalSince(startTime)
                         if elapsed >= 0.5 {  // 0.5 seconds minimum
                             if !self.isReadyForTrigger {
                                 DispatchQueue.main.async {
                                     self.isReadyForTrigger = true
-                                    print("✅ Ready for trigger")
                                 }
                             }
                         }
@@ -178,8 +183,6 @@ class VideoWriter: ObservableObject {
         
         // Combine pre and post trigger frames
         let buffersToWrite = preBufferSnapshot + postBufferSnapshot
-        print("🎬 Writing complete recording: \(buffersToWrite.count) frames (\(preTriggerBuffer.count) pre + \(postTriggerBuffer.count) post)")
-        
         // Create filename
         let timestamp = DateFormatter().apply {
             $0.dateFormat = "yyyy-MM-dd_HH-mm-ss"
@@ -198,7 +201,7 @@ class VideoWriter: ObservableObject {
                 AVVideoWidthKey: videoWidth,
                 AVVideoHeightKey: videoHeight,
                 AVVideoCompressionPropertiesKey: [
-                    AVVideoAverageBitRateKey: 5_000_000
+                    AVVideoAverageBitRateKey: targetBitRate()
                 ]
             ]
             
@@ -232,11 +235,9 @@ class VideoWriter: ObservableObject {
             
             assetWriter!.startSession(atSourceTime: .zero)
             
-            let timePerFrame = CMTime(seconds: 1.0/30.0, preferredTimescale: 600)
+            let timePerFrame = recordingConfiguration.frameRate.frameDuration
             var currentTime = CMTime.zero
             var framesWritten = 0
-            
-            print("📝 Writing \(buffersToWrite.count) frames from buffer")
             
             // Write all frames synchronously since expectsMediaDataInRealTime = false
             for (index, bufferedFrame) in buffersToWrite.enumerated() {
@@ -246,22 +247,15 @@ class VideoWriter: ObservableObject {
                 }
                 
                 let pixelBuffer = bufferedFrame.pixelBuffer
-                let width = CVPixelBufferGetWidth(pixelBuffer)
-                let height = CVPixelBufferGetHeight(pixelBuffer)
-                
-                print("🔍 Writing frame \(index): \(width)x\(height)")
                 
                 let success = adaptor.append(pixelBuffer, withPresentationTime: currentTime)
                 if success {
                     framesWritten += 1
                     currentTime = CMTimeAdd(currentTime, timePerFrame)
-                    print("✅ Appended frame \(framesWritten)/\(buffersToWrite.count)")
                 } else {
                     print("⚠️ adaptor.append() failed for frame \(index)")
                 }
             }
-            
-            print("📝 All \(framesWritten) frames appended")
             
             videoInput!.markAsFinished()
             
@@ -273,7 +267,7 @@ class VideoWriter: ObservableObject {
                     if let error = self.assetWriter?.error {
                         print("❌ Video writer error: \(error)")
                     } else {
-                        print("✅ Video saved: \(videoURL.path) with \(framesWritten) frames")
+                        print("✅ Video saved: \(videoURL.lastPathComponent) with \(framesWritten) frames")
                     }
                     
                     self.isWriting = false
@@ -292,13 +286,23 @@ class VideoWriter: ObservableObject {
         }
     }
     
+    private func targetBitRate() -> Int {
+        let baseBitRate: Double
+        switch recordingConfiguration.resolution {
+        case .hd1080:
+            baseBitRate = 16_000_000
+        }
+        let scaled = baseBitRate * (recordingConfiguration.frameRate.value / 30.0)
+        return max(8_000_000, Int(scaled))
+    }
+    
     // MARK: - Pixel Buffer Pool Management
     
     /// Creates a custom CVPixelBufferPool to avoid fighting with AVFoundation's internal pool
     private func createPixelBufferPool(width: Int, height: Int, format: OSType) -> Bool {
         // Pool attributes - specify minimum buffer count
         poolAttributes = [
-            kCVPixelBufferPoolMinimumBufferCountKey as String: FrameBufferConstants.totalBufferSize
+            kCVPixelBufferPoolMinimumBufferCountKey as String: totalBufferCapacity
         ]
         
         // Pixel buffer attributes
