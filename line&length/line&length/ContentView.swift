@@ -17,6 +17,8 @@ struct ContentView: View {
     
     @State private var showingVideos = false
     @State private var savedVideos: [URL] = []
+    @State private var showingVideoReadyBanner = false
+    @State private var lastSavedVideoURL: URL?
     
     var body: some View {
         NavigationView {
@@ -87,8 +89,19 @@ struct ContentView: View {
                     // Main Trigger Button
                     Button(action: {
                         videoWriter.triggerRecording()
+                        // Show banner after 2 seconds to ensure video is fully written
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                            loadSavedVideos() // Refresh the video list
+                            showingVideoReadyBanner = true
+                            // Hide banner after 3 seconds
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
+                                withAnimation {
+                                    showingVideoReadyBanner = false
+                                }
+                            }
+                        }
                     }) {
-                        Text(videoWriter.isReadyForTrigger ? "SAVES FRAMES from buffer" : "BUFFERING...")
+                        Text(videoWriter.isReadyForTrigger ? "Trigger" : "BUFFERING...")
                             .font(.title2)
                             .fontWeight(.bold)
                             .foregroundColor(.white)
@@ -105,9 +118,10 @@ struct ContentView: View {
                             if cameraManager.isSessionRunning {
                                 cameraManager.stopSession()
                             } else {
+                                // Ensure proper initialization order
+                                setupCameraFrameHandler()
                                 videoWriter.startCamera()
                                 cameraManager.startSession()
-                                setupCameraFrameHandler()
                             }
                         }) {
                             HStack {
@@ -138,46 +152,76 @@ struct ContentView: View {
                 
                 Spacer()
                 
-                // Video Location Info
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("📁 Videos are saved to:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    
-                    let documentsPath = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                    Text(documentsPath.path)
-                        .font(.caption2)
-                        .foregroundColor(.blue)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color.blue.opacity(0.1))
-                        .cornerRadius(4)
-                    
-                    Text("💡 Tap 'Videos' button to view and play saved recordings")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal)
+                // Hint text
+                Text("💡 Tap 'Videos' button to view and play saved recordings")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
             }
             .padding()
             .navigationTitle("Trigger Recorder")
+            .overlay(
+                Group {
+                    if showingVideoReadyBanner {
+                        VStack {
+                            HStack(spacing: 12) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.green)
+                                Text("Video Ready!")
+                                    .foregroundColor(.white)
+                                Spacer()
+                                Button("View") {
+                                    loadSavedVideos()
+                                    showingVideos = true
+                                }
+                                .foregroundColor(.white)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 4)
+                                .background(Color.blue)
+                                .cornerRadius(8)
+                            }
+                            .padding()
+                            .background(Color.black.opacity(0.8))
+                            .cornerRadius(12)
+                            .padding()
+                        }
+                        .transition(.move(edge: .top))
+                        .animation(.spring(), value: showingVideoReadyBanner)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                    }
+                }
+            )
             .onAppear {
+                // Set up the connection between CameraManager and VideoWriter
+                cameraManager.videoWriter = videoWriter
+                
+                // Set up frame handler before starting camera
                 setupCameraFrameHandler()
+                
+                // Start camera and load videos
+                videoWriter.startCamera()
                 loadSavedVideos()
-                // Ensure camera session starts
+                
+                // Start camera session if authorized
                 if cameraManager.isAuthorized && !cameraManager.isSessionRunning {
                     cameraManager.startSession()
                 }
+                
+                // Start refresh timer for video list
+                startVideoListRefreshTimer()
             }
             .sheet(isPresented: $showingVideos) {
-                VideoListView(videos: savedVideos)
+                VideoListView(videos: savedVideos, onVideoDeleted: {
+                    loadSavedVideos()
+                })
             }
         }
     }
     
     private func setupCameraFrameHandler() {
-        cameraManager.setFrameHandler { sampleBuffer in
-            self.videoWriter.addFrame(sampleBuffer)
+        cameraManager.setFrameHandler { [weak videoWriter] sampleBuffer in
+            // Using weak reference to avoid retain cycles
+            videoWriter?.addFrame(sampleBuffer)
         }
     }
     
@@ -194,6 +238,15 @@ struct ContentView: View {
                 }
         } catch {
             print("Error loading videos: \(error)")
+        }
+    }
+    
+    // Timer to automatically refresh video list
+    private func startVideoListRefreshTimer() {
+        Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { _ in
+            if showingVideos {
+                loadSavedVideos()
+            }
         }
     }
 }
@@ -234,6 +287,19 @@ class CameraPreviewUIView: UIView {
         previewLayer?.videoGravity = .resizeAspectFill
         previewLayer?.frame = bounds
         
+        // Set the video rotation for iOS 17 and later
+        if #available(iOS 17.0, *) {
+            if let connection = previewLayer?.connection,
+               connection.isVideoRotationAngleSupported(90) {
+                connection.videoRotationAngle = 90  // 90 degrees for portrait
+            }
+        } else {
+            if let connection = previewLayer?.connection,
+               connection.isVideoOrientationSupported {
+                connection.videoOrientation = .portrait
+            }
+        }
+        
         if let previewLayer = previewLayer {
             layer.addSublayer(previewLayer)
             print("Preview layer added with frame: \(previewLayer.frame)")
@@ -253,28 +319,70 @@ class CameraPreviewUIView: UIView {
 
 struct VideoListView: View {
     @State private var videos: [URL]
+    @State private var selectedVideos = Set<URL>()
+    @State private var isEditing = false
     @Environment(\.presentationMode) var presentationMode
+    let onVideoDeleted: () -> Void
     
-    init(videos: [URL]) {
+    init(videos: [URL], onVideoDeleted: @escaping () -> Void) {
         self._videos = State(initialValue: videos)
+        self.onVideoDeleted = onVideoDeleted
+    }
+    
+    private func deleteVideos(_ videosToDelete: [URL]) {
+        for videoURL in videosToDelete {
+            do {
+                try FileManager.default.removeItem(at: videoURL)
+                if let index = videos.firstIndex(of: videoURL) {
+                    videos.remove(at: index)
+                }
+                onVideoDeleted()
+            } catch {
+                print("Error deleting video \(videoURL.lastPathComponent): \(error)")
+            }
+        }
+        selectedVideos.removeAll()
     }
     
     var body: some View {
         NavigationView {
-            List(videos, id: \.self) { videoURL in
-                VideoRowView(videoURL: videoURL, allVideos: videos) {
-                    // Delete callback - remove video from list
-                    videos.removeAll { $0 == videoURL }
-                }
+            List(videos, id: \.self, selection: $selectedVideos) { videoURL in
+                VideoRowView(videoURL: videoURL, 
+                           allVideos: videos, 
+                             onDelete: {
+                    deleteVideos([videoURL])
+                }, isEditing: isEditing)
                 .listRowInsets(EdgeInsets())
                 .listRowSeparator(.hidden)
             }
             .listStyle(PlainListStyle())
+            .environment(\.editMode, .constant(isEditing ? .active : .inactive))
             .navigationTitle("Saved Videos (\(videos.count))")
             .navigationBarTitleDisplayMode(.inline)
-            .navigationBarItems(trailing: Button("Done") {
-                presentationMode.wrappedValue.dismiss()
-            })
+            .toolbar {
+                ToolbarItem(placement: .navigationBarLeading) {
+                    Button(isEditing ? "Cancel" : "Edit") {
+                        isEditing.toggle()
+                        if !isEditing {
+                            selectedVideos.removeAll()
+                        }
+                    }
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    if isEditing {
+                        Button("Delete (\(selectedVideos.count))") {
+                            deleteVideos(Array(selectedVideos))
+                            isEditing = false
+                        }
+                        .disabled(selectedVideos.isEmpty)
+                        .foregroundColor(.red)
+                    } else {
+                        Button("Done") {
+                            presentationMode.wrappedValue.dismiss()
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -283,6 +391,7 @@ struct VideoRowView: View {
     let videoURL: URL
     let allVideos: [URL]
     let onDelete: () -> Void
+    let isEditing: Bool
     @State private var showingPlayer = false
     @State private var showingDeleteAlert = false
     @State private var fileSize: String = "Unknown"
@@ -425,7 +534,7 @@ struct VideoRowView: View {
         print("Photo library authorization status: \(currentStatus.rawValue)")
         
         switch currentStatus {
-        case .authorized:
+        case .authorized, .limited:
             print("Photo library access already authorized, saving video")
             performSaveToPhotos()
         case .notDetermined:
@@ -434,7 +543,7 @@ struct VideoRowView: View {
             PHPhotoLibrary.requestAuthorization { status in
                 DispatchQueue.main.async {
                     print("Photo library permission request result: \(status.rawValue)")
-                    if status == .authorized {
+                    if status == .authorized || status == .limited {
                         self.performSaveToPhotos()
                     } else {
                         print("Photo library access denied by user")
@@ -444,7 +553,7 @@ struct VideoRowView: View {
         case .denied, .restricted:
             print("Photo library access denied or restricted")
         @unknown default:
-            print("Unknown photo library authorization status")
+            print("Unknown photo library authorization status: \(currentStatus.rawValue)")
         }
     }
     

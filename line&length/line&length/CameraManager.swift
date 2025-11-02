@@ -15,6 +15,8 @@ class CameraManager: NSObject, ObservableObject {
     @Published var debugMessages: [String] = []
     @Published var frameCount = 0
     @Published var droppedFrameCount = 0
+    
+    weak var videoWriter: VideoWriter?
     private var internalFrameCount = 0
     private var internalDroppedCount = 0
     
@@ -47,6 +49,9 @@ class CameraManager: NSObject, ObservableObject {
         case .authorized:
             addDebugMessage("Camera authorization: GRANTED")
             isAuthorized = true
+            DispatchQueue.main.async {
+                self.videoWriter?.startCamera() // Initialize VideoWriter first
+            }
             setupCaptureSession()
         case .notDetermined:
             addDebugMessage("Camera authorization: NOT DETERMINED - requesting access")
@@ -127,25 +132,34 @@ class CameraManager: NSObject, ObservableObject {
             self.videoOutput.alwaysDiscardsLateVideoFrames = true
             
             if let connection = self.videoOutput.connection(with: .video) {
-                if connection.isVideoOrientationSupported {
-                    connection.videoOrientation = .portrait
+                if #available(iOS 17.0, *) {
+                    if connection.isVideoRotationAngleSupported(90) {
+                        connection.videoRotationAngle = 90  // 90 degrees for portrait
+                    }
+                } else {
+                    if connection.isVideoOrientationSupported {
+                        connection.videoOrientation = .portrait
+                    }
                 }
             }
             
             if self.captureSession.canAddOutput(self.videoOutput) {
                 self.captureSession.addOutput(self.videoOutput)
-                self.addDebugMessage("Video output added successfully")
+                // self.addDebugMessage("Video output added successfully")
             } else {
                 self.addDebugMessage("ERROR: Cannot add video output to session")
             }
             
             self.captureSession.commitConfiguration()
-            self.addDebugMessage("Capture session configuration committed")
+            // self.addDebugMessage("Capture session configuration committed")
             
+            // Start the session on the session queue (background thread)
+            // self.addDebugMessage("Starting capture session...")
+            self.captureSession.startRunning()
+            self.addDebugMessage("Session running: \(self.captureSession.isRunning)")
+            
+            // Update UI state on main thread
             DispatchQueue.main.async {
-                self.addDebugMessage("Starting capture session...")
-                self.captureSession.startRunning()
-                self.addDebugMessage("Session running: \(self.captureSession.isRunning)")
                 self.isSessionRunning = self.captureSession.isRunning
             }
         }
