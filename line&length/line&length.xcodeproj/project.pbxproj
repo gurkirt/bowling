@@ -18,8 +18,9 @@
 		CAMERA001 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAMERA000 /* CameraManager.swift */; };
 		FRAME001 /* FrameBufferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRAME000 /* FrameBufferManager.swift */; };
 		MODEL001 /* ModelProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODEL000 /* ModelProcessor.swift */; };
-		VIDEO001 /* VideoWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = VIDEO000 /* VideoWriter.swift */; };
+		MOVFILE001 /* IMG_8301.MOV in Resources */ = {isa = PBXBuildFile; fileRef = MOVFILE000 /* IMG_8301.MOV */; };
 		RECORD001 /* RecordingConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = RECORD000 /* RecordingConfiguration.swift */; };
+		VIDEO001 /* VideoWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = VIDEO000 /* VideoWriter.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,8 +57,9 @@
 		FRAME000 /* FrameBufferManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameBufferManager.swift; sourceTree = "<group>"; };
 		INFO000 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		MODEL000 /* ModelProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProcessor.swift; sourceTree = "<group>"; };
-		VIDEO000 /* VideoWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWriter.swift; sourceTree = "<group>"; };
+		MOVFILE000 /* IMG_8301.MOV */ = {isa = PBXFileReference; lastKnownFileType = video.quicktime; path = IMG_8301.MOV; sourceTree = "<group>"; };
 		RECORD000 /* RecordingConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingConfiguration.swift; sourceTree = "<group>"; };
+		VIDEO000 /* VideoWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWriter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -116,6 +118,7 @@
 				FRAME000 /* FrameBufferManager.swift */,
 				VIDEO000 /* VideoWriter.swift */,
 				RECORD000 /* RecordingConfiguration.swift */,
+				MOVFILE000 /* IMG_8301.MOV */,
 				6975AD872EA9697800BD8D0E /* Assets.xcassets */,
 				6975AD892EA9697800BD8D0E /* line_length.entitlements */,
 				INFO000 /* Info.plist */,
@@ -263,6 +266,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				MOVFILE001 /* IMG_8301.MOV in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -534,12 +538,12 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = C2L9GKJ235;
+				DEVELOPMENT_TEAM = 9K9Q387VZD;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros.line-lengthTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros1.line-lengthTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -557,12 +561,12 @@
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = C2L9GKJ235;
+				DEVELOPMENT_TEAM = 9K9Q387VZD;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros.line-lengthTests";
+				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros1.line-lengthTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -579,12 +583,12 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = C2L9GKJ235;
+				DEVELOPMENT_TEAM = 9K9Q387VZD;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros.line-lengthUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros1.line-lengthUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -601,12 +605,12 @@
 				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_TEAM = C2L9GKJ235;
+				DEVELOPMENT_TEAM = 9K9Q387VZD;
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros.line-lengthUITests";
+				PRODUCT_BUNDLE_IDENTIFIER = "brunnenbros1.line-lengthUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
