@@ -14,7 +14,7 @@ chart.html
 .AppleDouble
 .LSOverride
 Icon\r
-
+debug_frames/
 # Xcode user data and state
 **/*.xcuserstate
 **/*.xcscmblueprint

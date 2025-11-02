@@ -30,6 +30,14 @@ The workflow typically involves:
 
 ## Installation
 
+### Quick start
+
+```bash
+pip install -r requirements.txt
+```
+
+This installs all runtime and tooling dependencies defined in `requirements.txt`.
+
 ### Prerequisites
 
 - Python 3.7+
@@ -43,6 +51,8 @@ The workflow typically involves:
 - PIL/Pillow
 - pandas
 - numpy
+ - coremltools (for Core ML export)
+ - altair (optional, for visualization utilities)
 
 ### Install Dependencies
 
@@ -51,7 +61,8 @@ The workflow typically involves:
 pip install torch torchvision torchaudio
 
 # Install other dependencies
-pip install opencv-python timm scikit-learn matplotlib seaborn tensorboard pillow pandas numpy
+# Or install packages individually
+pip install opencv-python timm scikit-learn matplotlib seaborn tensorboard pillow pandas numpy coremltools altair
 ```
 
 ## Dataset Structure
@@ -239,7 +250,7 @@ The trained model outputs:
 
 ## Requirements
 
-The project requires the following Python packages:
+The project requires the following Python packages (see `requirements.txt` for the authoritative list and versions provided by pip):
 
 ```
 torch>=1.9.0
@@ -253,6 +264,14 @@ tensorboard>=2.7.0
 pillow>=8.0.0
 pandas>=1.3.0
 numpy>=1.21.0
+
+Additional:
+
+```
+coremltools
+altair
+pytest
+```
 ```
 
 ## Tips for Best Results

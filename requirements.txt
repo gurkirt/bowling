@@ -1,0 +1,32 @@
+# Project dependencies for bowling
+# Install with: pip install -r requirements.txt
+
+# Core ML/vision stack
+torch
+torchvision
+# Modern image models
+timm
+# Apple Core ML conversion
+coremltools
+
+# Data & image processing
+# Pin to <2 to avoid ABI mismatch with many PyTorch/extension wheels on macOS
+numpy<2
+pandas
+pillow
+opencv-python
+
+# ML utilities
+scikit-learn
+matplotlib
+seaborn
+altair
+
+# Logging/visualization
+tensorboard
+
+# Testing
+pytest
+
+# Utilities
+packaging
