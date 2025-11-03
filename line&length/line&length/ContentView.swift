@@ -21,9 +21,7 @@ struct ContentView: View {
     @State private var selectedFrameRate: FrameRateOption = RecordingConfiguration.default.frameRate
     @State private var showingVideoReadyBanner = false
     @State private var isAutoTriggerEnabled = true
-    private var isRunningTests: Bool {
-        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-    }
+    // No test-mode branching; demo-focused build
     
     var body: some View {
         NavigationView {
@@ -231,27 +229,24 @@ struct ContentView: View {
                 }
             )
             .onAppear {
-                // During unit tests, don't start camera or timers; just show preview updates from tests
-                if !isRunningTests {
-                    // Set up the connection between CameraManager and VideoWriter
-                    cameraManager.videoWriter = videoWriter
+                // Set up the connection between CameraManager and VideoWriter
+                cameraManager.videoWriter = videoWriter
 
-                    // Set up frame handler before starting camera
-                    setupCameraFrameHandler()
-                    applyRecordingConfiguration()
+                // Set up frame handler before starting camera
+                setupCameraFrameHandler()
+                applyRecordingConfiguration()
 
-                    // Start camera and load videos
-                    videoWriter.startCamera()
-                    loadSavedVideos()
+                // Start camera and load videos
+                videoWriter.startCamera()
+                loadSavedVideos()
 
-                    // Start camera session if authorized
-                    if cameraManager.isAuthorized && !cameraManager.isSessionRunning {
-                        cameraManager.startSession()
-                    }
-
-                    // Start refresh timer for video list
-                    startVideoListRefreshTimer()
+                // Start camera session if authorized
+                if cameraManager.isAuthorized && !cameraManager.isSessionRunning {
+                    cameraManager.startSession()
                 }
+
+                // Start refresh timer for video list
+                startVideoListRefreshTimer()
 
                 // Wire model trigger to writer
                 modelProcessor.onTriggerDetected = { [weak videoWriter] in
@@ -374,7 +369,9 @@ class CameraPreviewUIView: UIView {
         
         if let previewLayer = previewLayer {
             layer.addSublayer(previewLayer)
+            #if DEBUG
             print("Preview layer added with frame: \(previewLayer.frame)")
+            #endif
         }
     }
     
@@ -385,7 +382,9 @@ class CameraPreviewUIView: UIView {
     
     func updateFrame() {
         previewLayer?.frame = bounds
+        #if DEBUG
         print("Preview layer frame updated to: \(bounds)")
+        #endif
     }
 }
 

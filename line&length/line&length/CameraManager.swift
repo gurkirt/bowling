@@ -26,18 +26,11 @@ class CameraManager: NSObject, ObservableObject {
     private let sessionQueue = DispatchQueue(label: "camera.session.queue")
     
     var frameHandler: ((CMSampleBuffer) -> Void)?
-    private var isRunningTests: Bool {
-        return ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-    }
     
     override init() {
         super.init()
         addDebugMessage("CameraManager initialized")
-        if !isRunningTests {
-            checkAuthorization()
-        } else {
-            addDebugMessage("Running under XCTest - skipping camera authorization and setup")
-        }
+        checkAuthorization()
     }
     
     private func addDebugMessage(_ message: String) {
@@ -54,10 +47,6 @@ class CameraManager: NSObject, ObservableObject {
     }
     
     func checkAuthorization() {
-        if isRunningTests {
-            addDebugMessage("XCTest detected - checkAuthorization no-op")
-            return
-        }
         addDebugMessage("Checking camera authorization...")
         switch AVCaptureDevice.authorizationStatus(for: .video) {
         case .authorized:

@@ -47,51 +47,69 @@ class ModelProcessor: ObservableObject {
     #endif
 
     var onTriggerDetected: (() -> Void)?
-    private var isRunningTests: Bool {
-        return ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-    }
 
     init() {
         loadModel()
     }
 
     private func loadModel() {
+        #if DEBUG
         print("🔵 loadModel() called")
-        
-        // Try both the main bundle and test bundle for resources
-        let bundles = [Bundle.main, Bundle(for: ModelProcessor.self)]
-        for bundle in bundles {
-            // Try compiled model first (.mlmodelc)
-            if let url = bundle.url(forResource: "best_model", withExtension: "mlmodelc") {
-                print("✅ Found .mlmodelc at: \(url)")
-                do {
-                    model = try MLModel(contentsOf: url)
-                    print("✅ Model loaded successfully (tensor input mode)")
-                    self.applyIOOverridesFromMetadata(model!)
-                    print("📋 Model description: \(model!.modelDescription)")
-                    DispatchQueue.main.async { self.isModelLoaded = true }
-                    return
-                } catch {
-                    print("❌ Failed to load MLModel: \(error)")
+        #endif
+        let loadQueue = DispatchQueue(label: "model.load.queue", qos: .userInitiated)
+        loadQueue.async {
+            // Try both the main bundle and test bundle for resources
+            let bundles = [Bundle.main, Bundle(for: ModelProcessor.self)]
+            for bundle in bundles {
+                // Try compiled model first (.mlmodelc)
+                if let url = bundle.url(forResource: "best_model", withExtension: "mlmodelc") {
+                    #if DEBUG
+                    print("✅ Found .mlmodelc at: \(url)")
+                    #endif
+                    do {
+                        let loaded = try MLModel(contentsOf: url)
+                        #if DEBUG
+                        print("✅ Model loaded successfully (tensor input mode)")
+                        #endif
+                        self.applyIOOverridesFromMetadata(loaded)
+                        DispatchQueue.main.async {
+                            self.model = loaded
+                            self.isModelLoaded = true
+                        }
+                        return
+                    } catch {
+                        #if DEBUG
+                        print("❌ Failed to load MLModel: \(error)")
+                        #endif
+                    }
+                }
+                // Fallback: attempt to load package (.mlpackage)
+                if let pkg = bundle.url(forResource: "best_model", withExtension: "mlpackage") {
+                    #if DEBUG
+                    print("✅ Found .mlpackage at: \(pkg)")
+                    #endif
+                    do {
+                        let loaded = try MLModel(contentsOf: pkg)
+                        #if DEBUG
+                        print("✅ Model loaded successfully (tensor input mode)")
+                        #endif
+                        self.applyIOOverridesFromMetadata(loaded)
+                        DispatchQueue.main.async {
+                            self.model = loaded
+                            self.isModelLoaded = true
+                        }
+                        return
+                    } catch {
+                        #if DEBUG
+                        print("❌ Failed to load MLPackage: \(error)")
+                        #endif
+                    }
                 }
             }
-            // Fallback: attempt to load package (.mlpackage)
-            if let pkg = bundle.url(forResource: "best_model", withExtension: "mlpackage") {
-                print("✅ Found .mlpackage at: \(pkg)")
-                do {
-                    model = try MLModel(contentsOf: pkg)
-                    print("✅ Model loaded successfully (tensor input mode)")
-                    self.applyIOOverridesFromMetadata(model!)
-                    print("📋 Model description: \(model!.modelDescription)")
-                    DispatchQueue.main.async { self.isModelLoaded = true }
-                    return
-                } catch {
-                    print("❌ Failed to load MLPackage: \(error)")
-                }
-            }
+            #if DEBUG
+            print("❌ Model file not found in bundle")
+            #endif
         }
-        
-        print("❌ Model file not found in bundle")
     }
 
     private func applyIOOverridesFromMetadata(_ model: MLModel) {
@@ -115,10 +133,6 @@ class ModelProcessor: ObservableObject {
         // Convert to CIImage
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
         var image = CIImage(cvPixelBuffer: pixelBuffer)
-        // Rotate only if portrait to keep downstream crop consistent with Python path
-        if image.extent.width < image.extent.height {
-            image = image.oriented(.right)
-        }
         var extent = image.extent
         var width = extent.width
         var height = extent.height
@@ -127,13 +141,14 @@ class ModelProcessor: ObservableObject {
             print("📐 Camera buffer oriented extent: \(extent)")
         }
 
-        // Remove top 32% -> keep bottom 68% (origin is bottom-left)
-        let topCropHeight = height * 0.32
-        let keptHeight = height - topCropHeight
-        let cropRect = CGRect(x: extent.minX,
-                              y: extent.minY,
-                              width: width,
-                              height: keptHeight)
+    // Remove TOP 32% -> keep BOTTOM 68% (match Python modellib.crop semantics).
+    // CIImage coordinates have origin at bottom-left, so keeping bottom region means y = minY.
+    let topCropHeight = height * 0.32
+    let keptHeight = height - topCropHeight
+    let cropRect = CGRect(x: extent.minX,
+                  y: extent.minY,
+                  width: width,
+                  height: keptHeight)
         image = image.cropped(to: cropRect)
 
         // Centered square crop from remaining area
@@ -145,11 +160,14 @@ class ModelProcessor: ObservableObject {
                                 height: squareSide)
         image = image.cropped(to: squareRect)
 
-        // Keep a small preview (downsample for UI) — in tests, update every frame
+        // Keep a small preview (downsample for UI)
         previewCounter &+= 1
-        let shouldUpdatePreview = isRunningTests || (previewCounter % 4 == 0)
+        let shouldUpdatePreview = (previewCounter % 4 == 0)
         if shouldUpdatePreview {
-            if let ui = renderUIImage(from: image, targetSize: CGSize(width: 160, height: 160)) {
+            // Force preview upright in portrait: if buffer is landscape, rotate right for display only
+            let isPortraitBuffer = image.extent.height >= image.extent.width
+            let previewCI: CIImage = isPortraitBuffer ? image : image.oriented(.right)
+            if let ui = renderUIImage(from: previewCI, targetSize: CGSize(width: 160, height: 160)) {
                 DispatchQueue.main.async { self.previewImage = ui }
             }
         }
