@@ -21,6 +21,9 @@ struct ContentView: View {
     @State private var selectedFrameRate: FrameRateOption = RecordingConfiguration.default.frameRate
     @State private var showingVideoReadyBanner = false
     @State private var isAutoTriggerEnabled = true
+    private var isRunningTests: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
     
     var body: some View {
         NavigationView {
@@ -228,24 +231,27 @@ struct ContentView: View {
                 }
             )
             .onAppear {
-                // Set up the connection between CameraManager and VideoWriter
-                cameraManager.videoWriter = videoWriter
-                
-                // Set up frame handler before starting camera
-                setupCameraFrameHandler()
-                applyRecordingConfiguration()
-                
-                // Start camera and load videos
-                videoWriter.startCamera()
-                loadSavedVideos()
-                
-                // Start camera session if authorized
-                if cameraManager.isAuthorized && !cameraManager.isSessionRunning {
-                    cameraManager.startSession()
+                // During unit tests, don't start camera or timers; just show preview updates from tests
+                if !isRunningTests {
+                    // Set up the connection between CameraManager and VideoWriter
+                    cameraManager.videoWriter = videoWriter
+
+                    // Set up frame handler before starting camera
+                    setupCameraFrameHandler()
+                    applyRecordingConfiguration()
+
+                    // Start camera and load videos
+                    videoWriter.startCamera()
+                    loadSavedVideos()
+
+                    // Start camera session if authorized
+                    if cameraManager.isAuthorized && !cameraManager.isSessionRunning {
+                        cameraManager.startSession()
+                    }
+
+                    // Start refresh timer for video list
+                    startVideoListRefreshTimer()
                 }
-                
-                // Start refresh timer for video list
-                startVideoListRefreshTimer()
 
                 // Wire model trigger to writer
                 modelProcessor.onTriggerDetected = { [weak videoWriter] in

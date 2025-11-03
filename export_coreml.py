@@ -17,6 +17,32 @@ from PIL import Image
 from modellib import crop
 
 
+class PreprocessWrapper(torch.nn.Module):
+    """Wraps a base model with ImageNet normalization and optional softmax.
+
+    Expects input as NCHW float32 tensor with pixel values in [0, 255].
+    Applies: x = (x/255 - mean) / std per channel, then forwards through base.
+    Optionally applies softmax to return probabilities.
+    """
+    def __init__(self, base: torch.nn.Module, softmax_output: bool = True):
+        super().__init__()
+        self.base = base
+        self.softmax_output = softmax_output
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+        # Register as buffers to trace/script properly and keep on the right device
+        self.register_buffer("_mean", mean)
+        self.register_buffer("_std", std)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        x = x / 255.0
+        x = (x - self._mean) / self._std
+        logits = self.base(x)
+        if self.softmax_output:
+            return torch.nn.functional.softmax(logits, dim=1)
+        return logits
+
+
 def print_env_info() -> None:
     """Print environment versions to help debug binary/ABI issues."""
     try:
@@ -104,7 +130,7 @@ def export_to_coreml(
     output_path: pathlib.Path,
     use_float16: bool = True,
     scriptable: bool = False,
-    nn_fallback_threshold: float = 1e-2,
+    backend: str = "mlprogram",
 ) -> ct.models.MLModel:
     """Export PyTorch model to CoreML format"""
     
@@ -122,203 +148,93 @@ def export_to_coreml(
         sample_pil = PILImage.open(sample_image_path).convert('RGB')
         sample_pil = sample_pil.resize((input_width, input_height), resample=PILImage.BILINEAR)
         sample_array = np.array(sample_pil).astype(np.float32)
-        sample_tensor_raw = np.transpose(sample_array, (2, 0, 1))[np.newaxis, :]  # HWC -> NCHW
-        
-        # Apply preprocessing (ImageNet normalization) to match what will be fed to CoreML
-        sample_tensor = torch.from_numpy(sample_tensor_raw)
-        sample_tensor = sample_tensor / 255.0
-        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
-        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
-        example_input = (sample_tensor - mean) / std
-        
+        example_input = np.transpose(sample_array, (2, 0, 1))[np.newaxis, :]  # HWC -> NCHW, values in [0,255]
         print(f"  Sample input shape: {example_input.shape}, range: [{example_input.min():.3f}, {example_input.max():.3f}]")
     else:
         print(f"Real sample not found, using random data for tracing")
-        # Create example input with ImageNet normalization applied
-        raw_input = torch.rand(1, 3, input_height, input_width) * 255.0
-        raw_input = raw_input / 255.0
-        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
-        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
-        example_input = (raw_input - mean) / std
+        # Create example input as unnormalized pixels in [0,255]
+        example_input = (torch.rand(1, 3, input_height, input_width) * 255.0).numpy().astype(np.float32)
     
-    # Prepare JIT candidates: script (if requested) and trace; choose the one closest to original
-    print("Preparing JIT candidates...")
-    model.eval()
-    jit_candidates = []
-    with torch.no_grad():
-        ref_out = model(example_input)
-    
-    scripted_model = None
-    if scriptable:
-        try:
-            print("  Attempting torch.jit.script...")
-            scripted_model = torch.jit.script(model)
-            with torch.no_grad():
-                s_out = scripted_model(example_input)
-                s_diff = torch.max(torch.abs(ref_out - s_out)).item()
-            print(f"  Parity (script vs original): max diff = {s_diff:.6f}")
-            jit_candidates.append(("script", scripted_model, s_diff))
-        except Exception as e:
-            print(f"  Scripting failed: {e}")
+    # Build inference wrapper (normalization + softmax for deployment simplicity)
+    base_model = model.eval()
+    deploy_model = PreprocessWrapper(base_model, softmax_output=True).eval()
 
-    print("  Tracing model...")
+    # Trace the deploy wrapper
+    print("Tracing deploy model (with preprocessing and softmax)...")
+    example_tensor = torch.from_numpy(example_input)
     with torch.no_grad():
-        traced_model = torch.jit.trace(model, example_input, strict=False, check_trace=True)
-        t_out = traced_model(example_input)
-        t_diff = torch.max(torch.abs(ref_out - t_out)).item()
-    print(f"  Parity (trace vs original):  max diff = {t_diff:.6f}")
-    jit_candidates.append(("trace", traced_model, t_diff))
-
-    # Choose best JIT based on smallest parity diff
-    jit_candidates.sort(key=lambda x: x[2])
-    chosen_name, chosen_jit, chosen_diff = jit_candidates[0]
-    print(f"  Selected JIT: {chosen_name} (max diff {chosen_diff:.6f})")
+        traced_model = torch.jit.trace(deploy_model, example_tensor, strict=False, check_trace=True)
     
     ## print traced model
     # print("Traced model structure:")
     # print(traced_model)
     print("Converting JIT model to CoreML...")
     convert_kwargs = {
-        "convert_to": "mlprogram",
-        "inputs": [ct.TensorType(name="image", shape=tuple(example_input.shape))],
+        "convert_to": backend,
+        # Use TensorType so Python predict accepts NCHW float32 arrays directly
+        "inputs": [ct.TensorType(name="image", shape=tuple(example_tensor.shape))],
     }
-    # Prefer a modern target to get better operator coverage
+    # Set deployment target based on backend
     try:
-        target = getattr(ct.target, "iOS16", None) or getattr(ct.target, "macOS13", None)
+        if backend == "mlprogram":
+            target = getattr(ct.target, "iOS16", None) or getattr(ct.target, "macOS13", None)
+        else:
+            target = (
+                getattr(ct.target, "iOS14", None)
+                or getattr(ct.target, "iOS13", None)
+                or getattr(ct.target, "macOS11", None)
+                or getattr(ct.target, "macOS10_15", None)
+            )
         if target is not None:
             convert_kwargs["minimum_deployment_target"] = target
     except Exception:
         pass
 
     precision = getattr(ct, "precision", None)
-    if precision is not None:
-        convert_kwargs["compute_precision"] = precision.FLOAT16 if use_float16 else precision.FLOAT32
-        exported_precision = "float16" if use_float16 else "float32"
+    if backend == "mlprogram":
+        if precision is not None:
+            convert_kwargs["compute_precision"] = precision.FLOAT16 if use_float16 else precision.FLOAT32
+            exported_precision = "float16" if use_float16 else "float32"
+        else:
+            exported_precision = "float32"
+            if use_float16:
+                print("  Warning: coremltools.precision not available; exporting in float32.")
     else:
-        exported_precision = "float32"
-        if use_float16:
-            # Older coremltools versions fall back to float32; warn user to reduce precision manually later.
-            print("  Warning: coremltools.precision not available; exporting in float32.")
+        # NN backend ignores compute_precision; we'll optionally compress weights to FP16 after conversion
+        exported_precision = "float32" if not use_float16 else "float16"
 
-    mlmodel = ct.convert(chosen_jit, **convert_kwargs)
-    print("CoreML MLProgram conversion complete")
-    # Quick parity check: compare raw logits on the example input
+    mlmodel = ct.convert(traced_model, **convert_kwargs)
+    print("CoreML conversion complete")
+
+    # Defer output renaming to after initial save for MLProgram (needs weights_dir)
+
+    # Determine current output name (pre-rename) for parity check
+    try:
+        spec = mlmodel.get_spec()
+        output_names = [output.name for output in spec.description.output]
+        final_output_name = output_names[0] if len(output_names) > 0 else None
+    except Exception:
+        final_output_name = "probs"
+    # Quick parity check: compare probabilities on the example input
     try:
         with torch.no_grad():
-            torch_logits = model(example_input).cpu().numpy().reshape(-1)
-        coreml_out = mlmodel.predict({"image": example_input.cpu().numpy().astype(np.float32)})
-        # Try to find first array-like output
-        cm_values = None
-        for v in coreml_out.values():
-            try:
-                arr = np.array(v, dtype=np.float32).reshape(-1)
-                if arr.size == torch_logits.size:
-                    cm_values = arr
-                    break
-            except Exception:
-                continue
-        if cm_values is not None:
-            diff = float(np.max(np.abs(cm_values - torch_logits)))
-            print(f"  MLProgram parity: max|Δlogits|={diff:.6f}")
-            # If MLProgram parity is not great, try alternate MLProgram precision before NN fallback
-            if diff > nn_fallback_threshold and precision is not None and "compute_precision" in convert_kwargs:
-                try:
-                    alt_precision = precision.FLOAT32 if convert_kwargs["compute_precision"] == precision.FLOAT16 else precision.FLOAT16
-                    alt_kwargs = dict(convert_kwargs)
-                    alt_kwargs["compute_precision"] = alt_precision
-                    mlmodel_alt = ct.convert(chosen_jit, **alt_kwargs)
-                    coreml_out_alt = mlmodel_alt.predict({"image": example_input.cpu().numpy().astype(np.float32)})
-                    cm_values_alt = None
-                    for v in coreml_out_alt.values():
-                        try:
-                            arr_alt = np.array(v, dtype=np.float32).reshape(-1)
-                            if arr_alt.size == torch_logits.size:
-                                cm_values_alt = arr_alt
-                                break
-                        except Exception:
-                            continue
-                    if cm_values_alt is not None:
-                        diff_alt = float(np.max(np.abs(cm_values_alt - torch_logits)))
-                        human_prec = "float32" if alt_precision == precision.FLOAT32 else "float16"
-                        print(f"  MLProgram (alt {human_prec}) parity: max|Δlogits|={diff_alt:.6f}")
-                        if diff_alt <= diff:
-                            print("  Using MLProgram alt-precision model due to better parity.")
-                            mlmodel = mlmodel_alt
-                            exported_precision = human_prec
-                            diff = diff_alt
-                except Exception as e_alt:
-                    print(f"  Skipping MLProgram alt-precision attempt due to: {e_alt}")
-            if diff > nn_fallback_threshold:
-                print(
-                    f"  MLProgram parity exceeds threshold ({diff:.6f} > {nn_fallback_threshold:g}); trying neuralnetwork backend..."
-                )
-                # Try neuralnetwork convert
-                nn_kwargs = dict(convert_kwargs)
-                nn_kwargs["convert_to"] = "neuralnetwork"
-                # compute_precision is not supported for neuralnetwork target
-                nn_kwargs.pop("compute_precision", None)
-                # For neuralnetwork backend, minimum deployment target must be <= iOS14/macOS11
-                try:
-                    older_target = (
-                        getattr(ct.target, "iOS14", None)
-                        or getattr(ct.target, "iOS13", None)
-                        or getattr(ct.target, "macOS11", None)
-                        or getattr(ct.target, "macOS10_15", None)
-                    )
-                    if older_target is not None:
-                        nn_kwargs["minimum_deployment_target"] = older_target
-                        print(f"  Using older deployment target for NN: {older_target}")
-                except Exception:
-                    pass
-                try:
-                    mlmodel_nn = ct.convert(chosen_jit, **nn_kwargs)
-                    coreml_out_nn = mlmodel_nn.predict({"image": example_input.cpu().numpy().astype(np.float32)})
-                    cm_values_nn = None
-                    for v in coreml_out_nn.values():
-                        try:
-                            arr2 = np.array(v, dtype=np.float32).reshape(-1)
-                            if arr2.size == torch_logits.size:
-                                cm_values_nn = arr2
-                                break
-                        except Exception:
-                            continue
-                    if cm_values_nn is not None:
-                        diff_nn = float(np.max(np.abs(cm_values_nn - torch_logits)))
-                        print(f"  NeuralNetwork parity: max|Δlogits|={diff_nn:.6f}")
-                        # Optional: compress NN weights to FP16 to reduce size when requested
-                        if use_float16 and hasattr(ct, "utils") and hasattr(ct.utils, "convert_neural_network_weights_to_fp16"):
-                            try:
-                                mlmodel_nn_fp16 = ct.utils.convert_neural_network_weights_to_fp16(mlmodel_nn)
-                                coreml_out_nn_fp16 = mlmodel_nn_fp16.predict({"image": example_input.cpu().numpy().astype(np.float32)})
-                                cm_values_nn_fp16 = None
-                                for v in coreml_out_nn_fp16.values():
-                                    try:
-                                        arr3 = np.array(v, dtype=np.float32).reshape(-1)
-                                        if arr3.size == torch_logits.size:
-                                            cm_values_nn_fp16 = arr3
-                                            break
-                                    except Exception:
-                                        continue
-                                if cm_values_nn_fp16 is not None:
-                                    diff_nn_fp16 = float(np.max(np.abs(cm_values_nn_fp16 - torch_logits)))
-                                    print(f"  NeuralNetwork FP16-weights parity: max|Δlogits|={diff_nn_fp16:.6f}")
-                                    # Keep FP16 weights if parity is as good as (or nearly as good as) float32
-                                    if diff_nn_fp16 <= diff_nn + 1e-4:
-                                        mlmodel_nn = mlmodel_nn_fp16
-                                        exported_precision = "float16"
-                            except Exception as e_fp16:
-                                print(f"  Skipping NN FP16 weight conversion due to: {e_fp16}")
-                        if diff_nn <= diff:
-                            print("  Using NeuralNetwork model due to better parity.")
-                            mlmodel = mlmodel_nn
-                        else:
-                            print("  Keeping MLProgram model (parity better than NN).")
-                except Exception as e2:
-                    print(f"  NeuralNetwork conversion failed: {e2}")
-        else:
-            print("  Note: could not locate a comparable array output for parity check.")
+            torch_probs = traced_model(example_tensor).cpu().numpy().reshape(-1)
+        coreml_out = mlmodel.predict({"image": example_input.astype(np.float32)})
+        out_key = final_output_name if final_output_name else next(iter(coreml_out.keys()))
+        cm_values = np.array(coreml_out[out_key], dtype=np.float32).reshape(-1)
+        diff = float(np.max(np.abs(cm_values - torch_probs)))
+        print(f"  CoreML parity (probs): max|Δ|={diff:.6f}")
     except Exception as e:
         print(f"  Skipping parity check due to: {e}")
+
+    # For NN backend, optionally compress weights to FP16 explicitly if requested
+    if backend == "neuralnetwork" and use_float16 and hasattr(ct, "utils") and hasattr(ct.utils, "convert_neural_network_weights_to_fp16"):
+        try:
+            mlmodel = ct.utils.convert_neural_network_weights_to_fp16(mlmodel)
+            exported_precision = "float16"
+            print("  Compressed NN weights to FP16 for smaller size.")
+        except Exception as e_fp16:
+            print(f"  Skipping NN FP16 weight compression due to: {e_fp16}")
     
     # Add metadata
     mlmodel.author = "Bowling Action Classifier"
@@ -327,25 +243,27 @@ def export_to_coreml(
     
     # Add input/output descriptions
     mlmodel.input_description["image"] = (
-        "RGB image input (cropped externally), shape (1,3,H,W) float32 in ImageNet-normalized space: "
-        "x = (x/255 - mean)/std with mean=[0.485,0.456,0.406], std=[0.229,0.224,0.225]"
+        "RGB image input (cropped externally), NCHW float32 with pixel values in [0,255]. "
+        "Model applies ImageNet normalization and outputs class probabilities (softmax)."
     )
     
-    # Add descriptions for classifier outputs (classLabel and class probabilities)
-    spec = mlmodel.get_spec()
-    output_names = [output.name for output in spec.description.output]
-    print(f"Output feature names: {output_names}")
-    
-    for output_name in output_names:
-        if output_name in mlmodel.output_description:
-            if "classLabel" in output_name or "Label" in output_name:
-                mlmodel.output_description[output_name] = "Predicted class label"
-            elif "Probability" in output_name or "probability" in output_name:
-                mlmodel.output_description[output_name] = "Class probabilities dictionary"
-    
-    # Save the model
+    # Save the model (first pass)
     print(f"\nSaving CoreML model to: {output_path}")
     mlmodel.save(str(output_path))
+
+    # Inspect outputs and set metadata/description without renaming
+    try:
+        spec = mlmodel.get_spec()
+        output_names = [output.name for output in spec.description.output]
+        print(f"Output feature names: {output_names}")
+        if len(output_names) > 0:
+            try:
+                mlmodel.output_description[output_names[0]] = "Class probabilities (softmax) as a dense array ordered by class index"
+                mlmodel.user_defined_metadata["output_name"] = output_names[0]
+            except Exception:
+                pass
+    except Exception:
+        pass
     
     # Get model size (handle both directory and file)
     if output_path.is_dir():
@@ -359,6 +277,20 @@ def export_to_coreml(
     print(f"Total size: {size_mb:.2f} MB")
     print(f"Precision: {exported_precision}")
     print(f"Format: {'ML Package (.mlpackage)' if output_path.suffix == '.mlpackage' else 'ML Model (.mlmodel)'}")
+
+    # Also save a copy into ./line&length/line&length/best_model.mlpackage
+    try:
+        secondary_path = pathlib.Path('line&length/line&length/best_model.mlpackage')
+        secondary_path.parent.mkdir(parents=True, exist_ok=True)
+        print(f"Also saving CoreML model to: {secondary_path}")
+        mlmodel.save(str(secondary_path))
+        if secondary_path.is_dir():
+            sec_size_mb = sum(f.stat().st_size for f in secondary_path.rglob('*') if f.is_file()) / (1024 * 1024)
+        else:
+            sec_size_mb = secondary_path.stat().st_size / (1024 * 1024)
+        print(f"  Saved duplicate successfully (size: {sec_size_mb:.2f} MB)")
+    except Exception as e:
+        print(f"  Note: failed to save duplicate model to {secondary_path}: {e}")
     
     return mlmodel
 
@@ -373,67 +305,6 @@ def _apply_rotation(frame: np.ndarray, rotate: int) -> np.ndarray:
         return cv2.rotate(frame, cv2.ROTATE_180)
     return frame
 
-
-def _softmax_np(x: np.ndarray) -> np.ndarray:
-    x = x.astype(np.float32)
-    x_max = np.max(x)
-    ex = np.exp(x - x_max)
-    s = np.sum(ex)
-    return ex / (s if s != 0 else 1.0)
-
-
-def _extract_probs_from_coreml_preds(preds: Dict[str, Any], num_classes: int) -> Optional[np.ndarray]:
-    """Best-effort extraction of class probabilities from CoreML prediction dict.
-
-    Handles these cases:
-    - preds contains a dict of probabilities (label->prob).
-    - preds contains an array-like of probabilities.
-    - preds contains raw logits (most likely for MLProgram from traced PyTorch) -> apply softmax.
-    Returns None if nothing usable found.
-    """
-    # 1) Look for a probability dict
-    for k, v in preds.items():
-        lk = k.lower()
-        if "prob" in lk or "classprob" in lk:
-            if isinstance(v, dict) and len(v) > 0:
-                arr = np.array(list(v.values()), dtype=np.float32)
-                # If not normalized, normalize defensively
-                s = np.sum(arr)
-                if s <= 0 or s > 1.0001:
-                    arr = _softmax_np(arr)
-                return arr
-            # array-like already
-            try:
-                arr = np.array(v, dtype=np.float32).reshape(-1)
-                if arr.size >= 2:
-                    s = np.sum(arr)
-                    if s <= 0 or s > 1.0001:
-                        arr = _softmax_np(arr)
-                    return arr
-            except Exception:
-                pass
-
-    # 2) No explicit probability key; pick the first array-like output as logits
-    for k, v in preds.items():
-        if isinstance(v, (list, tuple, np.ndarray)):
-            try:
-                arr = np.array(v, dtype=np.float32).reshape(-1)
-                if arr.size >= 2:
-                    # Treat as logits and softmax
-                    return _softmax_np(arr)
-            except Exception:
-                continue
-
-    # 3) Sometimes CoreML returns {name: MLMultiArray}; convert via np.array()
-    for k, v in preds.items():
-        try:
-            arr = np.array(v, dtype=np.float32).reshape(-1)
-            if arr.size >= 2:
-                return _softmax_np(arr)
-        except Exception:
-            continue
-
-    return None
 
 
 def validate_on_video(
@@ -475,6 +346,19 @@ def validate_on_video(
     if debug_dir is not None:
         debug_dir.mkdir(parents=True, exist_ok=True)
 
+    # Determine output name once for efficient access
+    try:
+        out_name = mlmodel.user_defined_metadata.get("output_name")  # type: ignore[attr-defined]
+    except Exception:
+        out_name = None
+    if not out_name:
+        try:
+            _spec = mlmodel.get_spec()
+            _outs = [o.name for o in _spec.description.output]
+            out_name = _outs[0] if len(_outs) > 0 else "probs"
+        except Exception:
+            out_name = "probs"
+
     while True:
         ok, frame = cap.read()
         if not ok:
@@ -508,21 +392,13 @@ def validate_on_video(
             interpolation=cv2.INTER_LINEAR,
         )
 
-        # Prepare tensor (NCHW) and apply ImageNet normalization expected by the CoreML model
-        tensor_input = np.transpose(rgb_resized.astype(np.float32), (2, 0, 1))[np.newaxis, :]
-        tensor_input = tensor_input / 255.0
-        mean_np = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 1, 1)
-        std_np = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)
-        tensor_input = (tensor_input - mean_np) / std_np
+        # Prepare CoreML input as raw pixels NCHW float32 in [0,255] (model handles normalization)
+        cm_input = np.transpose(rgb_resized.astype(np.float32), (2, 0, 1))[np.newaxis, :]
 
-        preds = mlmodel.predict({"image": tensor_input})
-        probs_ml = _extract_probs_from_coreml_preds(preds, len(class_labels))
-        if probs_ml is None:
-            prob_action = 0.0
-            label = 'no_action'
-        else:
-            prob_action = float(probs_ml[action_idx])
-            label = 'action' if prob_action >= 0.5 else 'no_action'
+        preds = mlmodel.predict({"image": cm_input})
+        probs_ml = np.array(preds[out_name], dtype=np.float32).reshape(-1)
+        prob_action = float(probs_ml[action_idx])
+        label = 'action' if prob_action >= 0.5 else 'no_action'
 
         action_count += int(label == 'action')
         avg_prob += prob_action
@@ -657,13 +533,24 @@ def compare_on_video(
     label_to_idx = {l: i for i, l in enumerate(class_labels)}
     action_idx = label_to_idx.get('action', 1)
 
-    import math
     total = 0
     disagree = 0
     abs_diffs = []
     frame_idx = 0
 
     model.eval()
+    # Determine output name once for efficient access
+    try:
+        out_name = mlmodel.user_defined_metadata.get("output_name")  # type: ignore[attr-defined]
+    except Exception:
+        out_name = None
+    if not out_name:
+        try:
+            _spec = mlmodel.get_spec()
+            _outs = [o.name for o in _spec.description.output]
+            out_name = _outs[0] if len(_outs) > 0 else "probs"
+        except Exception:
+            out_name = "probs"
     with torch.no_grad():
         while True:
             ok, frame = cap.read()
@@ -685,37 +572,34 @@ def compare_on_video(
 
             rgb = cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB)
 
-            # Resize externally with cv2 for both CoreML and PyTorch paths to be identical
+            # Resize externally with cv2
             rgb_resized = cv2.resize(
                 rgb,
                 (config['input_width'], config['input_height']),
                 interpolation=cv2.INTER_LINEAR,
             )
 
-            # Build a single normalized tensor to feed both CoreML and PyTorch
-            tensor_input = np.transpose(rgb_resized.astype(np.float32), (2, 0, 1))[np.newaxis, :]  # HWC -> NCHW
-            tensor_input = tensor_input / 255.0
-            mean_np = np.array([0.485, 0.456, 0.406], dtype=np.float32).reshape(1, 3, 1, 1)
-            std_np = np.array([0.229, 0.224, 0.225], dtype=np.float32).reshape(1, 3, 1, 1)
-            tensor_input = (tensor_input - mean_np) / std_np
+            # CoreML input: raw pixels NCHW float32 in [0,255] (model normalizes internally)
+            cm_input = np.transpose(rgb_resized.astype(np.float32), (2, 0, 1))[np.newaxis, :]
             
             # Debug: check tensor values for first frame
             if total == 0:
-                print(f"    [CoreML tensor input] shape={tensor_input.shape}, dtype={tensor_input.dtype}, range=[{tensor_input.min():.3f}, {tensor_input.max():.3f}]")
-                print(f"    [CoreML tensor sample] channel 0, pixel [0,0]={tensor_input[0, 0, 0, 0]:.3f}, channel 1={tensor_input[0, 1, 0, 0]:.3f}, channel 2={tensor_input[0, 2, 0, 0]:.3f}")
-            
-            ml_preds = mlmodel.predict({"image": tensor_input})
-            probs_ml = _extract_probs_from_coreml_preds(ml_preds, len(class_labels))
-            if probs_ml is None:
-                prob_ml = 0.0
-            else:
-                prob_ml = float(probs_ml[action_idx])
-                if total < 5:
-                    print(f"    [CoreML probs] no_action={probs_ml[0]:.4f}, action={probs_ml[1]:.4f}")
+                print(f"    [CoreML tensor input] shape={cm_input.shape}, dtype={cm_input.dtype}, range=[{cm_input.min():.1f}, {cm_input.max():.1f}]")
+                print(f"    [CoreML tensor sample] channel 0, pixel [0,0]={cm_input[0, 0, 0, 0]:.1f}, channel 1={cm_input[0, 1, 0, 0]:.1f}, channel 2={cm_input[0, 2, 0, 0]:.1f}")
+
+            ml_preds = mlmodel.predict({"image": cm_input})
+            probs_ml = np.array(ml_preds[out_name], dtype=np.float32).reshape(-1)
+            prob_ml = float(probs_ml[action_idx])
+            if total < 5:
+                print(f"    [CoreML probs] no_action={probs_ml[0]:.4f}, action={probs_ml[1]:.4f}")
             label_ml = 'action' if prob_ml >= 0.5 else 'no_action'
 
-            # PyTorch prediction: reuse the exact same normalized tensor
-            x = torch.from_numpy(tensor_input.copy())
+            # PyTorch prediction: normalize explicitly
+            x = torch.from_numpy(rgb_resized).permute(2, 0, 1).unsqueeze(0).float()
+            x = x / 255.0
+            mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+            std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+            x = (x - mean) / std
             
             # Debug: check tensor values for first frame
             if total == 0:
@@ -723,7 +607,10 @@ def compare_on_video(
                 print(f"    [PyTorch tensor sample] channel 0, pixel [0,0]={x[0, 0, 0, 0]:.3f}, channel 1={x[0, 1, 0, 0]:.3f}, channel 2={x[0, 2, 0, 0]:.3f}")
                 # Also test with same tensor on CoreML tensor_input from above to see if it's a model issue
                 print(f"    [Testing PyTorch with CoreML's exact tensor...]")
-                test_logits = model(torch.from_numpy(tensor_input))
+                # For sanity: run PyTorch on normalized version of cm_input
+                cm_norm = torch.from_numpy(cm_input).float() / 255.0
+                cm_norm = (cm_norm - mean) / std
+                test_logits = model(cm_norm)
                 test_probs = torch.nn.functional.softmax(test_logits, dim=1)
                 print(f"    [PyTorch with CoreML tensor] no_action={test_probs[0, 0].item():.4f}, action={test_probs[0, 1].item():.4f}")
             
@@ -805,10 +692,17 @@ def main() -> None:
         help='Output path for CoreML model (.mlpackage). Default: same name as input with .mlpackage extension'
     )
     
-    parser.add_argument(
-        '--float32',
+    # Explicit precision flags
+    prec_group = parser.add_mutually_exclusive_group()
+    prec_group.add_argument(
+        '--fp16',
         action='store_true',
-        help='Use float32 precision instead of float16 (larger model size)'
+        help='Export with float16 precision (default)'
+    )
+    prec_group.add_argument(
+        '--fp32',
+        action='store_true',
+        help='Export with float32 precision'
     )
     parser.add_argument(
         '--scriptable',
@@ -816,11 +710,13 @@ def main() -> None:
         help='Build export-friendly (scriptable) variant of the timm model when possible'
     )
     parser.add_argument(
-        '--nn-fallback-threshold',
-        type=float,
-        default=1e-2,
-        help='Only attempt NeuralNetwork backend if MLProgram max|Δlogits| exceeds this threshold (default: 1e-2)'
+        '--backend',
+        type=str,
+        choices=['mlprogram', 'neuralnetwork'],
+        default='mlprogram',
+        help='CoreML backend to target (default: mlprogram)'
     )
+    
     
     parser.add_argument(
         '--no-validate',
@@ -910,15 +806,17 @@ def main() -> None:
         # Create model
         model = create_model(checkpoint, config, scriptable=args.scriptable)
         
-        # Export to CoreML
-        use_float16 = not args.float32
+        # Resolve precision: default fp16 unless --fp32 specified
+        use_float16 = True if (args.fp16 or not args.fp32) else False
+
+        # Export to CoreML with explicit backend and precision
         mlmodel = export_to_coreml(
             model,
             config,
             output_path,
             use_float16,
             scriptable=args.scriptable,
-            nn_fallback_threshold=args.nn_fallback_threshold,
+            backend=args.backend,
         )
 
         if not args.no_validate:

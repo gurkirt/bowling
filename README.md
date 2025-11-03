@@ -11,6 +11,7 @@ This project provides tools for labelling bowling actions in videos and training
   - [Video Labelling](#video-labelling)
   - [Training Classifier](#training-classifier)
   - [Additional Tools](#additional-tools)
+  - [CoreML Export](#coreml-export)
 - [Project Files](#project-files)
 - [Output](#output)
 - [Requirements](#requirements)
@@ -220,6 +221,12 @@ Provides statistics and analysis of the labelled dataset.
 - **`analyze_labels.py`**: Dataset analysis and statistics
 - **`classes.txt`**: Defines action classes (currently: "bowling")
 - **`run_train.sh`**: Bash script for automated training runs
+
+### CoreML Export
+
+Export trained PyTorch checkpoints to Core ML for on-device use and validate on sample videos. See the dedicated guide:
+
+- CoreML Export Guide: [docs/export_coreml.md](docs/export_coreml.md)
 
 ## Output
 

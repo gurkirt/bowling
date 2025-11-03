@@ -153,9 +153,10 @@ def train_epoch(model, dataloader, criterion, optimizer, device, writer=None, ep
     for batch_idx, (images, labels) in enumerate(dataloader):
         images, labels = images.to(device), labels.to(device)
         
+        ## 64x3x256x256
         optimizer.zero_grad()
-        outputs = model(images)
-        loss = criterion(outputs, labels)
+        outputs = model(images) # 64x2
+        loss = criterion(outputs, labels) # scalar
         loss.backward()
         optimizer.step()
         
