@@ -13,7 +13,7 @@ from typing import Dict, Any, Tuple, Optional
 import platform
 import cv2
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageOps
 from modellib import crop
 
 
@@ -566,6 +566,9 @@ def compare_on_video(
             flip_before_after = (crop_from.lower() == 'bottom')
             if flip_before_after:
                 proc = cv2.flip(proc, 0)
+            ## save images
+            # save_path = pathlib.Path("debug_frames") / f"debug_frame_full_image_{frame_idx:06d}.png"
+            # cv2.imwrite(str(save_path), proc)
             cropped = crop(proc)
             if flip_before_after:
                 cropped = cv2.flip(cropped, 0)
@@ -643,6 +646,88 @@ def compare_on_video(
         "disagree_rate": disagree_rate,
         "mean_abs_diff": mean_abs_diff,
         "max_abs_diff": max_abs_diff,
+    }
+
+
+def compare_on_image(
+    mlmodel: ct.models.MLModel,
+    model: torch.nn.Module,
+    image_path: pathlib.Path,
+    config: Dict[str, Any],
+    apply_crop: bool = False,
+) -> Dict[str, Any]:
+    """Compare CoreML vs PyTorch on a single RGB image file.
+
+    The image will be resized to the model input size (H, W). If you pass a 256x256
+    PNG saved from the iOS app's DebugModelInputs, it will be used as-is (just converted to float).
+    """
+    print(f"\nComparing on image: {image_path}")
+    if not image_path.exists():
+        print(f"Warning: image not found: {image_path}")
+        return {}
+
+    input_height = config['input_height']
+    input_width = config['input_width']
+
+    # Load image as RGB, applying EXIF orientation if present
+    pil = Image.open(image_path)
+    try:
+        pil = ImageOps.exif_transpose(pil)
+    except Exception:
+        pass
+    pil = pil.convert('RGB')
+    if apply_crop:
+        # Apply Python crop() semantics before resize
+        np_img = np.array(pil)
+        np_img = crop(np_img)
+        pil = Image.fromarray(np_img)
+    if pil.size != (input_width, input_height):
+        pil = pil.resize((input_width, input_height), resample=Image.BILINEAR)
+    arr = np.array(pil).astype(np.float32)
+
+    # Prepare CoreML input: NCHW float32 [0,255]
+    cm_input = np.transpose(arr, (2, 0, 1))[np.newaxis, :]
+
+    # CoreML prediction
+    try:
+        preds = mlmodel.predict({"image": cm_input})
+        # Resolve output name
+        try:
+            out_name = mlmodel.user_defined_metadata.get("output_name")  # type: ignore[attr-defined]
+        except Exception:
+            out_name = None
+        if not out_name:
+            try:
+                _spec = mlmodel.get_spec()
+                _outs = [o.name for o in _spec.description.output]
+                out_name = _outs[0] if len(_outs) > 0 else next(iter(preds.keys()))
+            except Exception:
+                out_name = next(iter(preds.keys()))
+        probs_ml = np.array(preds[out_name], dtype=np.float32).reshape(-1)
+    except Exception as e:
+        print(f"CoreML predict failed: {e}")
+        return {}
+
+    # PyTorch prediction (normalize here)
+    with torch.no_grad():
+        x = torch.from_numpy(arr).permute(2, 0, 1).unsqueeze(0).float()
+        x = x / 255.0
+        mean = torch.tensor([0.485, 0.456, 0.406]).view(1, 3, 1, 1)
+        std = torch.tensor([0.229, 0.224, 0.225]).view(1, 3, 1, 1)
+        x = (x - mean) / std
+        logits = model(x)
+        probs_torch = torch.nn.functional.softmax(logits, dim=1)[0].cpu().numpy().reshape(-1)
+
+    # Compare
+    abs_diffs = np.abs(probs_ml - probs_torch)
+    print(f"  CoreML probs:  {probs_ml}")
+    print(f"  PyTorch probs: {probs_torch}")
+    print(f"  mean|Δ|={abs_diffs.mean():.6f}, max|Δ|={abs_diffs.max():.6f}")
+    return {
+        "mean_abs_diff": float(abs_diffs.mean()),
+        "max_abs_diff": float(abs_diffs.max()),
+        "probs_coreml": probs_ml.tolist(),
+        "probs_torch": probs_torch.tolist(),
     }
 
 
@@ -771,6 +856,17 @@ def main() -> None:
         help='Compare CoreML vs PyTorch predictions on the video and report differences'
     )
     parser.add_argument(
+        '--image',
+        type=pathlib.Path,
+        default=None,
+        help='Optional: path to an RGB image to compare (PyTorch vs CoreML). If size differs, it will be resized to model input.'
+    )
+    parser.add_argument(
+        '--apply-crop',
+        action='store_true',
+        help='Apply the same Python crop (remove top 32% then centered square) before resizing the image to model input size.'
+    )
+    parser.add_argument(
         '--crop-from',
         type=str,
         choices=['top', 'bottom'],
@@ -858,6 +954,13 @@ def main() -> None:
                         )
                 except Exception as ve:
                     print(f"Warning: video validation failed: {ve}")
+
+        # Optional single-image parity check
+        if args.image is not None:
+            try:
+                compare_on_image(mlmodel, model, args.image, config, apply_crop=args.apply_crop)
+            except Exception as ie:
+                print(f"Warning: image comparison failed: {ie}")
 
         print("\n" + "="*50)
         print("Export completed successfully!")

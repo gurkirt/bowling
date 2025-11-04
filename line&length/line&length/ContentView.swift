@@ -21,13 +21,25 @@ struct ContentView: View {
     @State private var selectedFrameRate: FrameRateOption = RecordingConfiguration.default.frameRate
     @State private var showingVideoReadyBanner = false
     @State private var isAutoTriggerEnabled = true
+    @State private var isProcessingPaused = false
     // No test-mode branching; demo-focused build
     
     var body: some View {
         NavigationView {
             VStack(spacing: 20) {
-                // Camera Preview
-                if cameraManager.isAuthorized {
+                // Main Preview: show model's cropped input when available, else camera preview
+                if let big = modelProcessor.bigPreviewImage {
+                    Image(uiImage: big)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(height: 300)
+                        .background(Color.black)
+                        .cornerRadius(15)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 15)
+                                .stroke(Color.blue, lineWidth: 2)
+                        )
+                } else if cameraManager.isAuthorized {
                     CameraPreviewView(cameraManager: cameraManager)
                         .frame(height: 300)
                         .cornerRadius(15)
@@ -155,6 +167,88 @@ struct ContentView: View {
                             .cornerRadius(12)
                         }
                         
+                        Button(action: {
+                            // Run a sequence of bundled sample images through the model
+                            if modelProcessor.isModelLoaded {
+                                // Pause camera processing while running the sample images
+                                isProcessingPaused = true
+                                if cameraManager.isSessionRunning {
+                                    cameraManager.stopSession()
+                                }
+
+                                // Prepare image names in Assets (without extension)
+                                let indices = Array(30...45)
+                                let names = indices.map { String(format: "debug_frame_full_image_%06d", $0) }
+
+                                func runSequence(_ i: Int) {
+                                    guard i < names.count else {
+                                        print("✅ Finished running \(names.count) images")
+                                        return
+                                    }
+                                    let name = names[i]
+                                    // Try Assets first
+                                    if let image = UIImage(named: name) {
+                                        print("▶️ Running image: \(name)")
+                                        modelProcessor.processUIImage(image) {
+                                            // Small delay before next to keep logs readable
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                                runSequence(i + 1)
+                                            }
+                                        }
+                                    } else if let url = Bundle.main.url(forResource: name, withExtension: "png"),
+                                              let image = UIImage(contentsOfFile: url.path) {
+                                        print("▶️ Running image (file): \(name).png")
+                                        modelProcessor.processUIImage(image) {
+                                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+                                                runSequence(i + 1)
+                                            }
+                                        }
+                                    } else {
+                                        print("⚠️ Image not found in assets or bundle: \(name)")
+                                        runSequence(i + 1)
+                                    }
+                                }
+
+                                runSequence(0)
+                            } else {
+                                print("⏳ Model not loaded yet")
+                            }
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "photo")
+                                    .font(.subheadline)
+                                Text("Run Sample Images")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                            }
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 14)
+                            .background(Color.orange)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+
+                        Button(action: {
+                            // Resume camera session and processing
+                            isProcessingPaused = false
+                            if cameraManager.isAuthorized && !cameraManager.isSessionRunning {
+                                cameraManager.startSession()
+                            }
+                        }) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "play.circle")
+                                    .font(.subheadline)
+                                Text("Resume Camera")
+                                    .font(.subheadline)
+                                    .fontWeight(.semibold)
+                            }
+                            .padding(.vertical, 10)
+                            .padding(.horizontal, 14)
+                            .background(isProcessingPaused ? Color.blue : Color.gray)
+                            .foregroundColor(.white)
+                            .cornerRadius(12)
+                        }
+
                         Button(action: toggleFrameRate) {
                             HStack(spacing: 6) {
                                 Text(selectedFrameRate.displayName)
@@ -286,7 +380,7 @@ struct ContentView: View {
         cameraManager.setFrameHandler { [weak videoWriter, weak modelProcessor] sampleBuffer in
             // Using weak reference to avoid retain cycles
             videoWriter?.addFrame(sampleBuffer)
-            if self.isAutoTriggerEnabled {
+            if self.isAutoTriggerEnabled && !self.isProcessingPaused {
                 modelProcessor?.processFrame(sampleBuffer)
             }
         }

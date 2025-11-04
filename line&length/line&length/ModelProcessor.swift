@@ -14,6 +14,7 @@ import UIKit
 class ModelProcessor: ObservableObject {
     @Published var isModelLoaded = false
     @Published var previewImage: UIImage?
+    @Published var bigPreviewImage: UIImage?
     @Published var lastActionScore: Float = 0
     @Published var lastNoActionScore: Float = 0
 
@@ -23,6 +24,7 @@ class ModelProcessor: ObservableObject {
     private let requiredActionCount = 4
 
     private var model: MLModel?
+    private var modelURL: URL?
     // CoreML I/O feature names (defaults; can be overridden by model metadata)
     private let inputFeatureName = "image"
     private var outputFeatureName = "var_734" // will try to read from creatorDefined metadata: output_name
@@ -74,6 +76,7 @@ class ModelProcessor: ObservableObject {
                         self.applyIOOverridesFromMetadata(loaded)
                         DispatchQueue.main.async {
                             self.model = loaded
+                            self.modelURL = url
                             self.isModelLoaded = true
                         }
                         return
@@ -96,6 +99,7 @@ class ModelProcessor: ObservableObject {
                         self.applyIOOverridesFromMetadata(loaded)
                         DispatchQueue.main.async {
                             self.model = loaded
+                            self.modelURL = pkg
                             self.isModelLoaded = true
                         }
                         return
@@ -176,6 +180,11 @@ class ModelProcessor: ObservableObject {
             let scale = 256.0 / Double(squareSide)
             let transform = CGAffineTransform(scaleX: scale, y: scale)
             let resized = image.transformed(by: transform)
+
+            // Update larger preview with the exact 256x256 model input (cropped + resized)
+            if let big = renderUIImage(from: resized, targetSize: CGSize(width: 300, height: 300)) {
+                DispatchQueue.main.async { self.bigPreviewImage = big }
+            }
 
             // Optionally save the exact 256x256 RGB input fed to the model for debugging
             #if DEBUG
@@ -331,5 +340,81 @@ class ModelProcessor: ObservableObject {
 
     func resetTrigger() {
         recentActionWins.removeAll()
+    }
+
+    // Run the same preprocessing + CoreML inference on a UIImage (e.g., a debug sample in the app bundle)
+    func processUIImage(_ uiImage: UIImage) {
+        processUIImage(uiImage, completion: nil)
+    }
+
+    // Variant with completion for chaining multiple images sequentially
+    func processUIImage(_ uiImage: UIImage, completion: (() -> Void)?) {
+        guard isModelLoaded, let model = model else { return }
+        guard let cg = uiImage.cgImage else { return }
+        let image = CIImage(cgImage: cg)
+
+        // 1) Crop: remove top 32% -> keep bottom 68%
+        var extent = image.extent
+        let width = extent.width
+        let height = extent.height
+        let topCropHeight = height * 0.32
+        let keptHeight = height - topCropHeight
+        let cropRect = CGRect(x: extent.minX, y: extent.minY, width: width, height: keptHeight)
+        var ci = image.cropped(to: cropRect)
+
+        // 2) Centered square crop within kept region
+        let postCropExtent = ci.extent
+        let squareSide = min(postCropExtent.width, postCropExtent.height)
+        let squareRect = CGRect(x: postCropExtent.midX - squareSide / 2,
+                                y: postCropExtent.midY - squareSide / 2,
+                                width: squareSide,
+                                height: squareSide)
+        ci = ci.cropped(to: squareRect)
+
+        // Update small preview (cropped view for quick glance)
+        if let ui = renderUIImage(from: ci, targetSize: CGSize(width: 160, height: 160)) {
+            DispatchQueue.main.async { self.previewImage = ui }
+        }
+
+        // 3) Resize to 256x256
+        let scale = 256.0 / Double(squareSide)
+        let transform = CGAffineTransform(scaleX: scale, y: scale)
+        let resized = ci.transformed(by: transform)
+
+        // Update larger preview with the exact 256x256 model input
+        if let big = renderUIImage(from: resized, targetSize: CGSize(width: 300, height: 300)) {
+            DispatchQueue.main.async { self.bigPreviewImage = big }
+        }
+
+        // 4) Convert to pixel buffer
+        guard let resizedPixelBuffer = createPixelBuffer(from: resized, width: 256, height: 256) else { return }
+
+        // 5) Pack pixels and predict
+        visionQueue.async { [weak self] in
+            guard let self = self else { return }
+            do {
+                let inputArray = try self.makeInputArrayFromPixelBuffer(resizedPixelBuffer)
+                let input = try MLDictionaryFeatureProvider(dictionary: [self.inputFeatureName: inputArray])
+                let output = try model.prediction(from: input)
+                let outKey = output.featureNames.contains(self.outputFeatureName)
+                    ? self.outputFeatureName
+                    : (model.modelDescription.outputDescriptionsByName.keys.first ?? self.outputFeatureName)
+                if let outputValue = output.featureValue(for: outKey), let multiArray = outputValue.multiArrayValue {
+                    let noActionScore = Float(truncating: multiArray[0])
+                    let actionScore = Float(truncating: multiArray[1])
+                    print("UIImage Prediction - Action Score: \(actionScore), No Action Score: \(noActionScore)")
+                    self.evaluateDecision(actionScore: actionScore, noActionScore: noActionScore)
+                }
+                // Signal completion back to caller
+                if let completion = completion {
+                    DispatchQueue.main.async { completion() }
+                }
+            } catch {
+                print("❌ Prediction error (UIImage): \(error)")
+                if let completion = completion {
+                    DispatchQueue.main.async { completion() }
+                }
+            }
+        }
     }
 }
