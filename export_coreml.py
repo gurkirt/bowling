@@ -15,6 +15,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageOps
 from modellib import crop
+import json
 
 
 class PreprocessWrapper(torch.nn.Module):
@@ -67,6 +68,47 @@ def print_env_info() -> None:
             print("NOTE: NumPy >= 2 detected. If you see ABI errors, downgrade to 'numpy<2' and reinstall binary deps.")
     except Exception:
         pass
+
+
+def print_channel_stats(arr: np.ndarray, tag: str = "") -> None:
+    """Compute & print per-channel mean/std (RGB) for tensor/array in [0,255].
+
+    Accepts any of the following shapes:
+      (H, W, 3)   - standard image (HWC RGB)
+      (3, H, W)   - CHW
+      (1, 3, H, W) - NCHW batch size 1
+    Values should be float (or convertible) in [0,255].
+    """
+    try:
+        shape = arr.shape
+        # Normalize to (3, H, W)
+        if arr.ndim == 4 and shape[0] == 1 and shape[1] == 3:
+            chw = arr[0]
+        elif arr.ndim == 3 and shape[0] == 3:
+            chw = arr
+        elif arr.ndim == 3 and shape[2] == 3:  # HWC
+            chw = np.transpose(arr, (2, 0, 1))
+        else:
+            print(f"{tag+' ' if tag else ''}Channel stats skipped (unsupported shape {shape})")
+            return
+
+        if chw.shape[0] != 3:
+            print(f"{tag+' ' if tag else ''}Channel stats skipped (expected 3 channels, got {chw.shape[0]})")
+            return
+
+        r = chw[0].reshape(-1)
+        g = chw[1].reshape(-1)
+        b = chw[2].reshape(-1)
+        r_mean, r_std = float(r.mean()), float(r.std())
+        g_mean, g_std = float(g.mean()), float(g.std())
+        b_mean, b_std = float(b.mean()), float(b.std())
+        prefix = f"{tag} " if tag else ""
+        print(
+            f"{prefix}Channel Stats (pre-norm, 0-255) "
+            f"R={r_mean:.4f}/{r_std:.4f} G={g_mean:.4f}/{g_std:.4f} B={b_mean:.4f}/{b_std:.4f}"
+        )
+    except Exception as e:
+        print(f"{tag+' ' if tag else ''}Warning: failed to compute channel stats: {e}")
 
 
 def load_checkpoint(model_path: pathlib.Path) -> Tuple[Dict[str, Any], Dict[str, Any]]:
@@ -567,8 +609,8 @@ def compare_on_video(
             if flip_before_after:
                 proc = cv2.flip(proc, 0)
             ## save images
-            # save_path = pathlib.Path("debug_frames") / f"debug_frame_full_image_{frame_idx:06d}.png"
-            # cv2.imwrite(str(save_path), proc)
+            save_path = pathlib.Path("debug_frames") / f"debug_frame_full_image_{frame_idx:06d}.png"
+            cv2.imwrite(str(save_path), proc)
             cropped = crop(proc)
             if flip_before_after:
                 cropped = cv2.flip(cropped, 0)
@@ -581,15 +623,34 @@ def compare_on_video(
                 (config['input_width'], config['input_height']),
                 interpolation=cv2.INTER_LINEAR,
             )
-
+            save_path = pathlib.Path("debug_frames") / f"debug_frame_cropped_resized_{frame_idx:06d}.png"
+            # cv2.imwrite(str(save_path), cv2.cvtColor(rgb_resized, cv2.COLOR_RGB2BGR))
             # CoreML input: raw pixels NCHW float32 in [0,255] (model normalizes internally)
             cm_input = np.transpose(rgb_resized.astype(np.float32), (2, 0, 1))[np.newaxis, :]
             
-            # Debug: check tensor values for first frame
-            if total == 0:
+            # Debug: dump specific frames for iOS asset parity (e.g., 35 and 45)
+            if frame_idx in (35, 45):
                 print(f"    [CoreML tensor input] shape={cm_input.shape}, dtype={cm_input.dtype}, range=[{cm_input.min():.1f}, {cm_input.max():.1f}]")
                 print(f"    [CoreML tensor sample] channel 0, pixel [0,0]={cm_input[0, 0, 0, 0]:.1f}, channel 1={cm_input[0, 1, 0, 0]:.1f}, channel 2={cm_input[0, 2, 0, 0]:.1f}")
-
+                print_channel_stats(cm_input, tag=f"frame {frame_idx:06d}")
+                dump_dir = pathlib.Path("debug_frames")
+                dump_dir.mkdir(parents=True, exist_ok=True)
+                base = dump_dir / f"tensor_frame_{frame_idx:06d}"
+                try:
+                    with open(str(base.with_suffix('.bin')), 'wb') as fbin:
+                        fbin.write(cm_input.astype(np.float32).tobytes(order='C'))
+                    meta = {
+                        "shape": list(cm_input.shape),
+                        "dtype": "float32",
+                        "layout": "NCHW",
+                        "range": [float(cm_input.min()), float(cm_input.max())],
+                    }
+                    with open(str(base.with_suffix('.json')), 'w') as fjs:
+                        json.dump(meta, fjs, indent=2)
+                    np.save(str(base.with_suffix('.npy')), cm_input.astype(np.float32))
+                    print(f"    [Dumped tensor] {base.with_suffix('.bin').name}, {base.with_suffix('.json').name}")
+                except Exception as e_dump:
+                    print(f"    [Dump tensor failed] {e_dump}")
             ml_preds = mlmodel.predict({"image": cm_input})
             probs_ml = np.array(ml_preds[out_name], dtype=np.float32).reshape(-1)
             prob_ml = float(probs_ml[action_idx])
@@ -684,6 +745,8 @@ def compare_on_image(
     if pil.size != (input_width, input_height):
         pil = pil.resize((input_width, input_height), resample=Image.BILINEAR)
     arr = np.array(pil).astype(np.float32)
+    # Debug channel stats
+    print_channel_stats(arr, tag="image")
 
     # Prepare CoreML input: NCHW float32 [0,255]
     cm_input = np.transpose(arr, (2, 0, 1))[np.newaxis, :]

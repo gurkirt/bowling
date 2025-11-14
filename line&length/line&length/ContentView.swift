@@ -168,7 +168,7 @@ struct ContentView: View {
                         }
                         
                         Button(action: {
-                            // Run a sequence of bundled sample images through the model
+                            // Run a sequence of pre-cropped+resized (256x256) images through the model
                             if modelProcessor.isModelLoaded {
                                 // Pause camera processing while running the sample images
                                 isProcessingPaused = true
@@ -178,7 +178,7 @@ struct ContentView: View {
 
                                 // Prepare image names in Assets (without extension)
                                 let indices = Array(30...45)
-                                let names = indices.map { String(format: "debug_frame_full_image_%06d", $0) }
+                                let names = indices.map { String(format: "debug_frame_cropped_resized_%06d", $0) }
 
                                 func runSequence(_ i: Int) {
                                     guard i < names.count else {
@@ -217,7 +217,7 @@ struct ContentView: View {
                             HStack(spacing: 6) {
                                 Image(systemName: "photo")
                                     .font(.subheadline)
-                                Text("Run Sample Images")
+                                Text("Run Cropped Images")
                                     .font(.subheadline)
                                     .fontWeight(.semibold)
                             }
