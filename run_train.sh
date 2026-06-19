@@ -31,13 +31,3 @@ for model in 'mobilenetv4_conv_small' 'mobilenetv4_conv_medium'; do
   device=$((device + 1))
 done
 
-# train_model 0 1 &
-# train_model 1 2 &
-# train_model 2 3 &
-# train_model 0 4 &
-# train_model 1 5 &
-# train_model 2 6 &
-# train_model 0 7 &
-# train_model 1 8 &
-# train_model 2 9 &
-# train_model 0 0 &

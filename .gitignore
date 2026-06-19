@@ -1,5 +1,8 @@
 .DS_Store
 analysis/
+ablation_logs/
+ablation_logs*
+trainins*
 crops_dataset/
 videos_not_used/
 .vscode/

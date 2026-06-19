@@ -17,34 +17,12 @@ import json
 import time
 import numpy as np
 import pathlib
-import random 
 import shutil
 import modellib
 import multiprocessing as mp
 from multiprocessing import Pool
 
 Frame: TypeAlias = np.ndarray 
-
-def add_symlinks(output_dir: pathlib.Path) -> None:
-    """Create train/val splits by creating symlinks to frames."""
-    for fold in range(10):
-        train_dir = output_dir / 'dataloader' / str(fold) / 'train'
-        val_dir = output_dir / 'dataloader' / str(fold)/ 'val'
-        
-        train_dir.mkdir(parents=True, exist_ok=True)
-        val_dir.mkdir(parents=True, exist_ok=True)
-
-        train_counter, val_counter = 0, 0
-        num_videos = len(list((output_dir / 'frames').iterdir()))
-        for i, video in enumerate((output_dir / 'frames').iterdir()):
-            if video.stem.endswith("_val") or 10*i//num_videos == fold:
-                for frame in video.glob('*.jpg'):
-                   (val_dir / f'frame_{val_counter:05d}.jpg').symlink_to(frame.absolute())
-                   val_counter += 1
-            else :
-                for frame in video.glob('*.jpg'):
-                    (train_dir / f'frame_{train_counter:05d}.jpg').symlink_to(frame.absolute())
-                    train_counter += 1
 
 def glob_videos(video_dir: pathlib.Path, istest: bool) -> Iterator[pathlib.Path]:
     video_found = False
@@ -71,8 +49,9 @@ def write_all(output_dir: pathlib.Path, video_dir: pathlib.Path, istest: bool) -
 
 def write_one(video: pathlib.Path, frames_dir: pathlib.Path) -> None:
     """
-    Extract frames from videos in video_dir, save to frames_dir.
-    Only 10% of 'not in action' frames are sampled and saved.
+    Decode every frame of a video to frames_dir/<video_stem>/, cropped, with the
+    in-action label encoded in the filename. No subsampling happens here so the
+    dataset can build multi-frame windows and sample negatives on the fly.
     """
     try:
         events = modellib.read_start_end(video)
@@ -80,14 +59,11 @@ def write_one(video: pathlib.Path, frames_dir: pathlib.Path) -> None:
         print(f"Warning: Skipping {video.name}: could not read annotation {e}")
         return
 
+    out_dir = frames_dir / video.stem
+    out_dir.mkdir(exist_ok=True, parents=True)
     for i, frame in enumerate(_frames(video)):
         in_action = any(start - 2 <= i <= end for (start, end) in events)
-        if not in_action and random.choice([True, False]):
-            # Save only 50% of the frames "not in action".
-            continue
-        framefilename = pathlib.Path(video.stem) / f'frame_{i:05d}_{str(in_action).lower()}.jpg'
-        framepath = frames_dir / framefilename
-        framepath.parent.mkdir(exist_ok=True, parents=True)
+        framepath = out_dir / f'frame_{i:05d}_{str(in_action).lower()}.jpg'
         cv2.imwrite(str(framepath), modellib.crop(frame))
 
 
@@ -142,7 +118,6 @@ def main():
     if not args.video_dir:
         parser.error("The video directory does not exist: %s." % args.video_dir)
     write_all(args.output_dir, args.video_dir, args.test)
-    add_symlinks(args.output_dir)
 
 if __name__ == '__main__':
     main()

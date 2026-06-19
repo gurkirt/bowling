@@ -1,0 +1,148 @@
+"""dataset.py - On-the-fly bowling-action dataset.
+
+Frames are decoded to disk by training_set.py as:
+    <frames_dir>/<video_stem>/frame_<index>_<true|false>.jpg
+
+This module builds the train/val split and samples frames on the fly, so we can
+experiment with single- and multi-frame inputs and negative sampling without
+re-materialising the dataset.
+
+Split: a single fold (default fold 3). A video goes to validation if its stem
+ends with "_val" or if it falls into the selected fold bucket; otherwise train.
+
+Multi-frame: each sample loads a causal trailing window of `num_frames` frames
+(current frame plus the preceding ones, spaced by `frame_stride`), clamped at the
+start of the clip. Frames are early-fused along the channel dimension, producing a
+tensor of shape (num_frames * 3, H, W). With num_frames == 1 this is the original
+single-frame behaviour.
+"""
+
+from enum import Enum
+from pathlib import Path
+from typing import List, Tuple
+import random
+import re
+
+import torch
+from torch.utils.data import Dataset
+from PIL import Image
+
+
+class Mode(Enum):
+    TRAIN = "train"
+    VAL = "val"
+
+
+_FRAME_RE = re.compile(r"frame_(\d+)_(true|false)\.jpg$", re.IGNORECASE)
+
+
+def _list_videos(frames_dir: Path) -> List[Path]:
+    return sorted(p for p in frames_dir.iterdir() if p.is_dir())
+
+
+def _is_val_video(video: Path, index: int, num_videos: int, fold: int, num_folds: int) -> bool:
+    return video.stem.endswith("_val") or (num_folds * index // num_videos == fold)
+
+
+def _index_frames(video: Path) -> List[Tuple[Path, int]]:
+    """Return this video's frames sorted by frame index as (path, label)."""
+    items = []
+    for p in video.glob("*.jpg"):
+        m = _FRAME_RE.search(p.name)
+        if not m:
+            continue
+        items.append((int(m.group(1)), p, 1 if m.group(2).lower() == "true" else 0))
+    items.sort(key=lambda t: t[0])
+    return [(p, label) for _, p, label in items]
+
+
+class BowlingDataset(Dataset):
+    def __init__(
+        self,
+        frames_dir: Path,
+        mode: Mode,
+        fold: int = 3,
+        num_folds: int = 10,
+        num_frames: int = 1,
+        frame_stride: int = 1,
+        neg_skip_prob: float = 0.0,
+        transform=None,
+    ):
+        print(f"Initializing dataset: {mode.value} (fold {fold}/{num_folds}) from {frames_dir}")
+        self.mode = mode
+        self.num_frames = num_frames
+        self.frame_stride = frame_stride
+        self.neg_skip_prob = neg_skip_prob
+        self.transform = transform
+
+        videos = _list_videos(Path(frames_dir))
+        num_videos = len(videos)
+
+        # Each sample references its video's full (ordered) frame list plus a position,
+        # so the multi-frame window can be assembled on the fly.
+        self.samples: List[Tuple[List[Tuple[Path, int]], int, int]] = []
+        self.labels: List[int] = []
+        selected_videos = 0
+        for i, video in enumerate(videos):
+            is_val = _is_val_video(video, i, num_videos, fold, num_folds)
+            if (mode == Mode.VAL) != is_val:
+                continue
+            selected_videos += 1
+            frames = _index_frames(video)
+            for pos, (_, label) in enumerate(frames):
+                self.samples.append((frames, pos, label))
+                self.labels.append(label)
+
+        self._build_index()
+        n_pos = sum(self.labels)
+        print(
+            f"  {selected_videos} videos, {len(self.samples)} frames "
+            f"({n_pos} action / {len(self.samples) - n_pos} no-action); "
+            f"using {len(self.index)} after neg_skip_prob={neg_skip_prob}"
+        )
+
+    def _build_index(self) -> None:
+        """(Re)build the active sample index, applying negative subsampling on the fly."""
+        if self.neg_skip_prob <= 0:
+            self.index = list(range(len(self.samples)))
+            return
+        self.index = [
+            i for i, label in enumerate(self.labels)
+            if label == 1 or random.random() >= self.neg_skip_prob
+        ]
+
+    def resample(self) -> None:
+        """Re-draw the negative subsample (call once per epoch to vary negatives)."""
+        self._build_index()
+
+    def __len__(self) -> int:
+        return len(self.index)
+
+    def _load(self, path: Path) -> Image.Image:
+        return Image.open(path).convert("RGB")
+
+    def __getitem__(self, i: int):
+        frames, pos, label = self.samples[self.index[i]]
+
+        # Causal trailing window: oldest first, current frame last. Clamp at clip start.
+        positions = [max(pos - k * self.frame_stride, 0) for k in range(self.num_frames)]
+        positions.reverse()
+        images = [self._load(frames[j][0]) for j in positions]
+
+        if self.transform is not None:
+            if self.num_frames > 1:
+                # Apply identical random augmentation to every frame in the window
+                # so motion is preserved across the early-fused stack.
+                seed = random.randint(0, 2**31 - 1)
+                tensors = []
+                for im in images:
+                    random.seed(seed)
+                    torch.manual_seed(seed)
+                    tensors.append(self.transform(im))
+            else:
+                tensors = [self.transform(im) for im in images]
+        else:
+            tensors = images
+
+        out = tensors[0] if self.num_frames == 1 else torch.cat(tensors, dim=0)
+        return out, torch.tensor(label, dtype=torch.long)

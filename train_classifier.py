@@ -3,7 +3,6 @@
 train_classifier.py - Train a PyTorch image classification model using timm
 """
 
-from enum import Enum
 import os
 import pdb
 import argparse
@@ -15,17 +14,17 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from torch.utils.data import Dataset, DataLoader, WeightedRandomSampler
+from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import ReduceLROnPlateau, CosineAnnealingLR
 import torchvision.transforms as transforms
-from PIL import Image
 
 import timm
-from sklearn.model_selection import train_test_split
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+from sklearn.metrics import precision_score, recall_score, f1_score, confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
 from torch.utils.tensorboard import SummaryWriter
+
+from dataset import BowlingDataset, Mode
 
 class FocalLoss(nn.Module):
     """Focal Loss for addressing class imbalance"""
@@ -39,10 +38,12 @@ class FocalLoss(nn.Module):
         ce_loss = nn.functional.cross_entropy(inputs, targets, reduction='none')
         pt = torch.exp(-ce_loss)
         
-        # Calculate alpha_t
+        # Calculate alpha_t: up-weight the positive (action) class by alpha and the
+        # negative (no-action) class by (1 - alpha) so the rare action class is
+        # emphasised. A scalar alpha applied to every sample would not balance classes.
         if self.alpha is not None:
             if isinstance(self.alpha, (float, int)):
-                alpha_t = self.alpha
+                alpha_t = self.alpha * targets + (1 - self.alpha) * (1 - targets)
             else:
                 alpha_t = self.alpha[targets]
         else:
@@ -57,57 +58,40 @@ class FocalLoss(nn.Module):
         else:
             return focal_loss
 
-class Mode(Enum):
-    TRAIN = "train"
-    VAL = "val"
 
+class ModelEMA:
+    """Exponential Moving Average of model weights.
 
-## include in imagelist
-def include_in_imagelist(img: Path, prob: float) -> bool:
-    """Decide whether to include image based on probability"""
-    if img.stem.endswith('false'):
-        return random.random() >= prob
-    return True
+    Keeps a shadow copy of the model whose parameters track an EMA of the
+    training weights. EMA weights are typically smoother and generalise better,
+    which smooths out the epoch-to-epoch accuracy/F1 fluctuations seen during
+    training. The shadow model is used for validation and saved as the best
+    model.
+    """
 
+    def __init__(self, model, decay=0.999, device=None):
+        import copy
+        self.module = copy.deepcopy(model).eval()
+        self.decay = decay
+        self.device = device
+        for p in self.module.parameters():
+            p.requires_grad_(False)
+        if device is not None:
+            self.module.to(device)
 
-class BowlingDataset(Dataset):
-    def __init__(self, root_dir: Path, fold: int, mode: Mode, neg_skip_prob: float = 0.0, transform=None):
-        print(f"Initializing dataset: {mode.value} for fold {fold} from {root_dir}")
-        self.links_dir: Path = root_dir / str(fold) / mode.value
-        self.transform = transform
-        self.full_image_list = list(self.links_dir.glob("*.jpg"))
-        self.neg_skip_prob = neg_skip_prob  # Probability to include negative samples
-        self.image_list = []
-        for img in self.full_image_list:
-            imgname = img.resolve()
-            if include_in_imagelist(imgname, self.neg_skip_prob):
-                self.image_list.append(imgname)
-        
-        print(f"Total images in {mode.value} set: {len(self.image_list)} sampled from {len(self.full_image_list)}")
+    @torch.no_grad()
+    def update(self, model):
+        d = self.decay
+        ema_params = dict(self.module.named_parameters())
+        model_params = dict(model.named_parameters())
+        for name, m_param in model_params.items():
+            e_param = ema_params[name]
+            e_param.mul_(d).add_(m_param.detach(), alpha=1.0 - d)
+        # Buffers (e.g. BatchNorm running stats) are copied directly.
+        ema_buffers = dict(self.module.named_buffers())
+        for name, m_buf in model.named_buffers():
+            ema_buffers[name].copy_(m_buf)
 
-
-    def __len__(self):
-        return len(self.image_list)
-
-    def __getitem__(self, idx):
-        img_path = self.image_list[idx]
-        label = torch.tensor(img_path.stem.endswith('true'), dtype=torch.long)
-        try:
-            image = Image.open(img_path).convert('RGB')
-        except Exception as e:
-            print(f"Error loading image {img_path}: {e}")
-            raise 
-        if self.transform:
-            image = self.transform(image)
-        
-        return image, label
-
-def XFV(fold_dir: Path) -> tuple[tuple[Path, bool], tuple[Path, bool]]:
-    xpaths, ys = [], []
-    for s in 'train', 'val':
-        xpaths.append([link.resolve() for link in (fold_dir / s).iterdir()])
-        ys.append([p.stem.endswith('True') for p in xpaths[-1]])
-    return (xpaths[0], ys[0]), (xpaths[1], ys[1])
 
 def get_transforms(input_height=256, input_width=256, augment=True) -> tuple[transforms.Compose, transforms.Compose]:
     """Get data transforms for rectangular images"""
@@ -137,13 +121,13 @@ def get_transforms(input_height=256, input_width=256, augment=True) -> tuple[tra
     
     return train_transform, val_transform
 
-def create_model(model_name, num_classes=2, pretrained=True):
+def create_model(model_name, num_classes=2, pretrained=True, in_chans=3):
     """Create timm model"""
-    print(f"Creating model: {model_name}")
-    model = timm.create_model(model_name, pretrained=pretrained, num_classes=num_classes)
+    print(f"Creating model: {model_name} (in_chans={in_chans})")
+    model = timm.create_model(model_name, pretrained=pretrained, num_classes=num_classes, in_chans=in_chans)
     return model
 
-def train_epoch(model, dataloader, criterion, optimizer, device, writer=None, epoch=None):
+def train_epoch(model, dataloader, criterion, optimizer, device, writer=None, epoch=None, ema=None):
     """Train for one epoch"""
     model.train()
     running_loss = 0.0
@@ -159,6 +143,8 @@ def train_epoch(model, dataloader, criterion, optimizer, device, writer=None, ep
         loss = criterion(outputs, labels) # scalar
         loss.backward()
         optimizer.step()
+        if ema is not None:
+            ema.update(model)
         
         running_loss += loss.item()
         _, predicted = outputs.max(1)
@@ -252,11 +238,12 @@ def plot_confusion_matrix(y_true, y_pred, save_path):
     plt.savefig(save_path, dpi=300, bbox_inches='tight')
     plt.close()
 
-def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, args, writer=None):
+def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler, device, args, writer=None, ema=None):
     """Main training loop"""
     train_losses, val_losses = [], []
     train_accs, val_accs = [], []
     best_val_acc = 0.0
+    best_val_f1 = 0.0
     start_epoch = args.start_epoch
     
     print(f"\nStarting training from epoch {start_epoch+1} to {args.epochs}...")
@@ -265,13 +252,27 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         print(f"\nEpoch {epoch+1}/{args.epochs}")
         print("-" * 50)
         
-        # Train
-        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device, writer, epoch)
+        # Re-draw the negative subsample so each epoch sees different negatives.
+        if hasattr(train_loader.dataset, 'resample'):
+            train_loader.dataset.resample()
         
-        # Validate
+        # Train
+        train_loss, train_acc = train_epoch(model, train_loader, criterion, optimizer, device, writer, epoch, ema)
+        
+        # Validate raw model
         val_loss, val_acc, val_precision, val_recall, val_f1, _, _ = validate_epoch(
             model, val_loader, criterion, device
         )
+
+        # Validate EMA model. EMA weights are smoother, so we select the best
+        # checkpoint based on the EMA metrics when EMA is enabled.
+        if ema is not None:
+            ema_loss, ema_acc, ema_precision, ema_recall, ema_f1, _, _ = validate_epoch(
+                ema.module, val_loader, criterion, device
+            )
+        else:
+            ema_loss, ema_acc, ema_precision, ema_recall, ema_f1 = (
+                val_loss, val_acc, val_precision, val_recall, val_f1)
         
         # Log to TensorBoard
         if writer is not None:
@@ -283,6 +284,12 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
             writer.add_scalar('Metrics/Recall', val_recall, epoch)
             writer.add_scalar('Metrics/F1', val_f1, epoch)
             writer.add_scalar('Learning_Rate', optimizer.param_groups[0]['lr'], epoch)
+            if ema is not None:
+                writer.add_scalar('EMA/Validation_Loss', ema_loss, epoch)
+                writer.add_scalar('EMA/Validation_Accuracy', ema_acc, epoch)
+                writer.add_scalar('EMA/Precision', ema_precision, epoch)
+                writer.add_scalar('EMA/Recall', ema_recall, epoch)
+                writer.add_scalar('EMA/F1', ema_f1, epoch)
         
         # Update scheduler
         if args.scheduler == 'plateau':
@@ -299,24 +306,45 @@ def train_model(model, train_loader, val_loader, criterion, optimizer, scheduler
         print(f"Train Loss: {train_loss:.4f}, Train Acc: {train_acc:.2f}%")
         print(f"Val Loss: {val_loss:.4f}, Val Acc: {val_acc:.2f}%")
         print(f"Val Precision: {val_precision:.4f}, Val Recall: {val_recall:.4f}, Val F1: {val_f1:.4f}")
-        
-        # Save best model
-        if val_acc > best_val_acc:
-            best_val_acc = val_acc
+        if ema is not None:
+            print(f"EMA Val Acc: {ema_acc:.2f}%, EMA Precision: {ema_precision:.4f}, EMA Recall: {ema_recall:.4f}, EMA F1: {ema_f1:.4f}")
+
+        # When EMA is enabled, select/save the best model using the smoother EMA
+        # metrics and store the EMA weights as model_state_dict (so inference
+        # uses the EMA model). Otherwise fall back to the raw model.
+        sel_f1 = ema_f1 if ema is not None else val_f1
+        sel_acc = ema_acc if ema is not None else val_acc
+        sel_recall = ema_recall if ema is not None else val_recall
+        sel_precision = ema_precision if ema is not None else val_precision
+        sel_state_dict = ema.module.state_dict() if ema is not None else model.state_dict()
+
+        # Select best model by F1 (balances precision/recall) instead of raw
+        # accuracy, which is misleading under class imbalance and would favour
+        # models that under-predict the rare action class.
+        best_val_acc = max(best_val_acc, sel_acc)
+        if sel_f1 > best_val_f1:
+            best_val_f1 = sel_f1
             save_checkpoint({
                 'epoch': epoch,
-                'model_state_dict': model.state_dict(),
+                'model_state_dict': sel_state_dict,
+                'raw_model_state_dict': model.state_dict(),
                 'optimizer_state_dict': optimizer.state_dict(),
                 'scheduler_state_dict': scheduler.state_dict(),
-                'val_acc': val_acc,
+                'val_acc': sel_acc,
                 'best_val_acc': best_val_acc,
+                'val_f1': sel_f1,
+                'best_val_f1': best_val_f1,
+                'val_recall': sel_recall,
+                'val_precision': sel_precision,
+                'ema': ema is not None,
                 'args': args,
                 'train_losses': train_losses,
                 'val_losses': val_losses,
                 'train_accs': train_accs,
                 'val_accs': val_accs
             }, os.path.join(args.output_dir, 'best_model.pth'))
-            print(f"New best model saved! Val Acc: {val_acc:.2f}%")
+            tag = 'EMA ' if ema is not None else ''
+            print(f"New best model saved! {tag}Val F1: {sel_f1:.4f} (Acc {sel_acc:.2f}%, Recall {sel_recall:.4f}, Prec {sel_precision:.4f})")
         
         # Save periodic checkpoint
         if (epoch + 1) % args.save_every == 0:
@@ -389,8 +417,9 @@ def main():
     parser = argparse.ArgumentParser(description='Train image classification model with timm')
     
     # Data arguments
-    parser.add_argument('--data_dir', default='training_set/dataloader', help='Train and validation frames directory')
-    parser.add_argument('--fold', type=int, default=0, help='Fold number for cross-validation')
+    parser.add_argument('--data_dir', default='training_set/frames', help='Decoded frames directory (per-video subfolders)')
+    parser.add_argument('--fold', type=int, default=3, help='Validation fold to hold out')
+    parser.add_argument('--num_folds', type=int, default=10, help='Number of folds used to define the val split')
     parser.add_argument('--output_dir', default='trainings', help='Output directory')
 
     
@@ -411,14 +440,21 @@ def main():
     parser.add_argument('--val_videos', type=int, default=12, help='Number of videos for validation')
     parser.add_argument('--input_height', type=int, default=320, help='Input image height')
     parser.add_argument('--input_width', type=int, default=128, help='Input image width')
+    parser.add_argument('--num_frames', type=int, default=1, help='Frames per sample (early-fused channel stack). 1 = single frame')
+    parser.add_argument('--frame_stride', type=int, default=1, help='Temporal stride between stacked frames')
     parser.add_argument('--augment', action='store_true', default=True, help='Use data augmentation')
     
     # Class balancing arguments
-    parser.add_argument('--class_balance', choices=['none', 'focal'], default='none', 
+    parser.add_argument('--class_balance', choices=['none', 'focal'], default='focal', 
                        help='Class balancing method: none, weights (weighted loss), sampling (weighted sampler), focal (focal loss)')
     parser.add_argument('--neg_skip_prob', type=float, default=0.5, help='Probability to skip negative samples')
     parser.add_argument('--focal_alpha', type=float, default=0.25, help='Focal loss alpha parameter')
     parser.add_argument('--focal_gamma', type=float, default=2.0, help='Focal loss gamma parameter')
+    
+    # EMA arguments
+    parser.add_argument('--ema', action='store_true', default=True, help='Use Exponential Moving Average of weights')
+    parser.add_argument('--no_ema', dest='ema', action='store_false', help='Disable EMA')
+    parser.add_argument('--ema_decay', type=float, default=0.999, help='EMA decay rate (closer to 1 = slower/smoother)')
     
     # Checkpoint and validation arguments
     parser.add_argument('--save_every', type=int, default=10, help='Save checkpoint every N epochs')
@@ -451,6 +487,8 @@ def main():
     
     # Create experiment name
     exp_name = f"f{args.fold}_{args.model_name}_{args.input_height}x{args.input_width}_bs{args.batch_size}_lr{args.lr:.0e}_ep{args.epochs}_{args.optimizer}_{args.scheduler}"
+    if args.num_frames > 1:
+        exp_name += f"_nf{args.num_frames}s{args.frame_stride}"
     if args.weight_decay != 1e-4:
         exp_name += f"_wd{args.weight_decay:.0e}"
     if args.augment:
@@ -459,8 +497,9 @@ def main():
         exp_name += f"_bal{args.class_balance}"
         if args.class_balance == 'focal':
             exp_name += f"_a{args.focal_alpha}_g{args.focal_gamma}"
+    if args.ema:
+        exp_name += f"_ema{args.ema_decay}"
     print(f"Experiment name: {exp_name}")
-    
     # Create output directory with experiment name
     exp_output_dir = os.path.join(args.output_dir, exp_name)
     os.makedirs(exp_output_dir, exist_ok=True)
@@ -490,8 +529,12 @@ def main():
     train_transform, val_transform = get_transforms(args.input_height, args.input_width, args.augment)
     
     # Create datasets
-    train_dataset = BowlingDataset(Path(args.data_dir), args.fold, Mode.TRAIN, args.neg_skip_prob, transform=train_transform)
-    val_dataset = BowlingDataset(Path(args.data_dir), args.fold, Mode.VAL, transform=val_transform)
+    train_dataset = BowlingDataset(Path(args.data_dir), Mode.TRAIN, fold=args.fold, num_folds=args.num_folds,
+                                   num_frames=args.num_frames, frame_stride=args.frame_stride,
+                                   neg_skip_prob=args.neg_skip_prob, transform=train_transform)
+    val_dataset = BowlingDataset(Path(args.data_dir), Mode.VAL, fold=args.fold, num_folds=args.num_folds,
+                                 num_frames=args.num_frames, frame_stride=args.frame_stride,
+                                 transform=val_transform)
 
     # Create data loaders
     train_loader = DataLoader(
@@ -506,8 +549,14 @@ def main():
                            num_workers=args.num_workers, pin_memory=True)
     
     # Create model
-    model = create_model(args.model_name, args.num_classes, args.pretrained)
+    model = create_model(args.model_name, args.num_classes, args.pretrained, in_chans=3 * args.num_frames)
     model = model.to(device)
+    
+    # Create EMA model (shadow weights tracked as an exponential moving average)
+    ema = None
+    if args.ema:
+        ema = ModelEMA(model, decay=args.ema_decay, device=device)
+        print(f"Using EMA with decay={args.ema_decay}")
     
     # Print model info
     total_params = sum(p.numel() for p in model.parameters())
@@ -617,7 +666,7 @@ def main():
     
     # Training mode
     train_losses, val_losses, train_accs, val_accs, best_val_acc = train_model(
-        model, train_loader, val_loader, criterion, optimizer, scheduler, device, args, writer
+        model, train_loader, val_loader, criterion, optimizer, scheduler, device, args, writer, ema
     )
     
     # Log final metrics to TensorBoard
