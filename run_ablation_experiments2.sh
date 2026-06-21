@@ -57,46 +57,46 @@ train_model() {
 # ---------------------------------------------------------------------------
 
 # --- Group A: mobile/iPhone-friendly architectures (MobileNetV4, MobileOne, FastViT) ---
-echo "=== Wave 1 ==="
-train_model 0 mobilenetv4_conv_large    0.75 2.0 0.5 48 0.999 exp01_mnv4large_ns50   &
-train_model 1 mobilenetv4_hybrid_medium 0.75 2.0 0.5 48 0.999 exp02_mnv4hybridM_ns50 &
-wait
+# echo "=== Wave 1 ==="
+# train_model 0 mobilenetv4_conv_large    0.75 2.0 0.5 48 0.999 exp01_mnv4large_ns50   &
+# train_model 1 mobilenetv4_hybrid_medium 0.75 2.0 0.5 48 0.999 exp02_mnv4hybridM_ns50 &
+# wait
 
-echo "=== Wave 2 ==="
-train_model 0 mobileone_s1              0.75 2.0 0.5 64 0.999 exp03_mobileone_s1     &
-train_model 1 mobileone_s2              0.75 2.0 0.5 64 0.999 exp04_mobileone_s2     &
-wait
+# echo "=== Wave 2 ==="
+# train_model 0 mobileone_s1              0.75 2.0 0.5 64 0.999 exp03_mobileone_s1     &
+# train_model 1 mobileone_s2              0.75 2.0 0.5 64 0.999 exp04_mobileone_s2     &
+# wait
 
-echo "=== Wave 3 ==="
-train_model 0 mobileone_s4              0.75 2.0 0.5 48 0.999 exp05_mobileone_s4     &
-train_model 1 fastvit_t12               0.75 2.0 0.5 64 0.999 exp06_fastvit_t12      &
-wait
+# echo "=== Wave 3 ==="
+# train_model 0 mobileone_s4              0.75 2.0 0.5 48 0.999 exp05_mobileone_s4     &
+# train_model 1 fastvit_t12               0.75 2.0 0.5 64 0.999 exp06_fastvit_t12      &
+# wait
 
-echo "=== Wave 4 ==="
+# echo "=== Wave 4 ==="
 train_model 0 fastvit_sa12              0.75 2.0 0.5 64 0.999 exp07_fastvit_sa12     &
-train_model 1 fastvit_sa24              0.75 2.0 0.5 48 0.999 exp08_fastvit_sa24     &
-wait
+# train_model 1 fastvit_sa24              0.75 2.0 0.5 48 0.999 exp08_fastvit_sa24     &
+# wait
 
-# --- Group B: more negative frames (lower neg_skip) on medium + large ---
-echo "=== Wave 5 ==="
-train_model 0 mobilenetv4_conv_medium   0.75 2.0 0.25 64 0.999 exp09_medium_ns25     &
+# # --- Group B: more negative frames (lower neg_skip) on medium + large ---
+# echo "=== Wave 5 ==="
+# train_model 0 mobilenetv4_conv_medium   0.75 2.0 0.25 64 0.999 exp09_medium_ns25     &
 train_model 1 mobilenetv4_conv_medium   0.75 2.0 0.0  64 0.999 exp10_medium_ns00     &
-wait
+# wait
 
-echo "=== Wave 6 ==="
-train_model 0 mobilenetv4_conv_large    0.75 2.0 0.25 48 0.999 exp11_large_ns25      &
-train_model 1 mobilenetv4_conv_large    0.75 2.0 0.0  48 0.999 exp12_large_ns00      &
-wait
+# echo "=== Wave 6 ==="
+# train_model 0 mobilenetv4_conv_large    0.75 2.0 0.25 48 0.999 exp11_large_ns25      &
+# train_model 1 mobilenetv4_conv_large    0.75 2.0 0.0  48 0.999 exp12_large_ns00      &
+# wait
 
-# --- Group C: focal/EMA fine-tuning on the round-1 winner (medium, ns=0.5) ---
-echo "=== Wave 7 ==="
-train_model 0 mobilenetv4_conv_medium   0.85 2.0 0.5 64 0.999  exp13_medium_a85      &
-train_model 1 mobilenetv4_conv_medium   0.65 2.0 0.5 64 0.999  exp14_medium_a65      &
-wait
+# # --- Group C: focal/EMA fine-tuning on the round-1 winner (medium, ns=0.5) ---
+# echo "=== Wave 7 ==="
+# train_model 0 mobilenetv4_conv_medium   0.85 2.0 0.5 64 0.999  exp13_medium_a85      &
+# train_model 1 mobilenetv4_conv_medium   0.65 2.0 0.5 64 0.999  exp14_medium_a65      &
+# wait
 
-echo "=== Wave 8 ==="
-train_model 0 mobilenetv4_conv_medium   0.75 1.0 0.5 64 0.999  exp15_medium_g1       &
-train_model 1 mobilenetv4_conv_medium   0.75 2.0 0.5 64 0.9995 exp16_medium_ema9995  &
+# echo "=== Wave 8 ==="
+# train_model 0 mobilenetv4_conv_medium   0.75 1.0 0.5 64 0.999  exp15_medium_g1       &
+# train_model 1 mobilenetv4_conv_medium   0.75 2.0 0.5 64 0.9995 exp16_medium_ema9995  &
 wait
 
 echo "All 16 experiments finished. Logs in ablation_logs2/, models in trainings2/."

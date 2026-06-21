@@ -543,7 +543,8 @@ def main():
         shuffle=(True),  # Don't shuffle if using sampler
         sampler=None, # remove or re-implement
         num_workers=args.num_workers, 
-        pin_memory=True
+        pin_memory=True,
+        drop_last=True  # avoid a final batch of size 1 breaking BatchNorm (norm_head) in train mode
     )
     val_loader = DataLoader(val_dataset, batch_size=args.batch_size, shuffle=False, 
                            num_workers=args.num_workers, pin_memory=True)
