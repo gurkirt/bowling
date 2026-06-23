@@ -1,0 +1,31 @@
+# Export requirements for export_executorch.py
+# Python version: 3.11 or 3.12 (both work; executorch ships wheels for 3.10–3.13)
+#
+# Covers all three export targets:
+#   --backend xnnpack    -> ExecuTorch XNNPACK .pte  (CPU, portable)
+#   --backend coreml     -> ExecuTorch CoreML .pte   (Apple ANE/NPU)
+#   --backend mlpackage  -> native Core ML .mlpackage (coremltools)
+#
+# Setup (recommended):
+#   conda create -n bowling-export311 python=3.11 pip
+#   conda activate bowling-export311
+#   conda install pytorch torchvision -c pytorch
+#   pip install -r requirements_export.txt
+#
+# ExecuTorch (.pte export and runtime validation):
+#   Apple Silicon (arm64):  pip install executorch   <-- prebuilt wheel on PyPI
+#   Intel macOS  (x86_64):  no prebuilt wheel; build from source:
+#       pip install --no-build-isolation git+https://github.com/pytorch/executorch.git@v1.3.1
+#   Without executorch, mlpackage export still works with coremltools alone.
+
+numpy<2
+torch
+torchvision
+timm
+coremltools
+executorch
+
+# executorch is intentionally not pinned here because:
+#   - Apple Silicon: install via  pip install executorch
+#   - Intel macOS:   install via  pip install --no-build-isolation git+https://github.com/pytorch/executorch.git@v1.3.1
+#   - Linux x86_64:  install via  pip install executorch  (manylinux wheel available)

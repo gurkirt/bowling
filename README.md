@@ -228,6 +228,43 @@ Export trained PyTorch checkpoints to Core ML for on-device use and validate on 
 
 - CoreML Export Guide: [docs/export_coreml.md](docs/export_coreml.md)
 
+### ExecuTorch Export on macOS
+
+`export_executorch.py` supports three export targets:
+
+- ExecuTorch `.pte` with XNNPACK (`--backend xnnpack`)
+- ExecuTorch `.pte` with the CoreML delegate (`--backend coreml`)
+- Native Core ML `.mlpackage` (`--backend mlpackage`)
+
+Recommended export environment on macOS:
+
+```bash
+conda create -n bowling-export311 python=3.11 pip
+conda activate bowling-export311
+conda install -y pytorch torchvision torchaudio -c pytorch
+pip install -r requirements.txt
+pip install timm coremltools
+```
+
+ExecuTorch availability depends on the Mac architecture:
+
+- Apple Silicon (`arm64`): install the published wheel with `pip install executorch`
+- Intel macOS (`x86_64`): PyPI does not publish a macOS Intel wheel for `executorch`; exporting `.pte` artifacts requires building ExecuTorch from source. Native Core ML `.mlpackage` export still works with `coremltools` alone.
+
+Useful checks:
+
+```bash
+uname -m
+python -c "import torch, timm, coremltools; print(torch.__version__)"
+python export_executorch.py models/fastvit_sa12_exp07.pt --backend mlpackage
+```
+
+On Apple Silicon, once `executorch` is installed, you can validate all three export targets with:
+
+```bash
+python export_executorch.py models/fastvit_sa12_exp07.pt --compare
+```
+
 ## Output
 
 ### Training Outputs

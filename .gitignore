@@ -8,6 +8,7 @@ videos_not_used/
 .vscode/
 training_set/
 videos-downloaded/
+val_videos/
 *.MOV
 *.mov
 *.mp4
