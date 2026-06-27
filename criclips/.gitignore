@@ -1,0 +1,53 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon\r
+
+# Xcode user data and state
+**/*.xcuserstate
+**/*.xcscmblueprint
+line&length.xcodeproj/xcuserdata/
+line&length.xcodeproj/project.xcworkspace/xcuserdata/
+
+# Build artifacts
+build/
+DerivedData/
+
+# Swift Package Manager
+.swiftpm/
+.build/
+
+# CocoaPods (if used)
+Pods/
+
+# Carthage (if used)
+Carthage/Build/
+
+# Fastlane (if used)
+fastlane/report.xml
+fastlane/Preview.html
+fastlane/screenshots/
+fastlane/test_output/
+
+# Archives and symbols
+*.ipa
+*.dSYM
+*.dSYM.zip
+
+# IDE/editor settings
+.vscode/
+.idea/
+
+# Generated plist variants
+*.plist~
+
+# Optional: ignore large Core ML package weights if tracked elsewhere or regenerated
+# Uncomment the next lines if you do NOT want to commit raw weight blobs
+# line&length/best_model.mlpackage/Data/com.apple.CoreML/weights/
+# line&length/best_model.mlpackage/**/*.bin
+
+# Optional: keep the .mlmodel metadata, ignore compiled artifacts
+# Uncomment if you only want to track the top-level model file
+# line&length/best_model.mlpackage/Data/com.apple.CoreML/model.mlmodel
+# line&length/best_model.mlpackage/**
