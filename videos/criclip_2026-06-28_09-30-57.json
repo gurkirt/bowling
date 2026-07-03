@@ -1,0 +1,12 @@
+{
+  "video": "criclip_2026-06-28_09-30-57.mp4",
+  "total_frames": 90,
+  "temporal_events": [
+    {
+      "start_frame": 25,
+      "end_frame": 30,
+      "middle_frame": 27,
+      "class": "bowling"
+    }
+  ]
+}

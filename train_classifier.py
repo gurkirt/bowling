@@ -420,6 +420,8 @@ def main():
     parser.add_argument('--data_dir', default='training_set/frames', help='Decoded frames directory (per-video subfolders)')
     parser.add_argument('--fold', type=int, default=3, help='Validation fold to hold out')
     parser.add_argument('--num_folds', type=int, default=10, help='Number of folds used to define the val split')
+    parser.add_argument('--val_split', choices=['fold', 'val_suffix'], default='fold',
+                       help="Validation split: 'fold' (held-out fold + _val videos) or 'val_suffix' (only _val videos for val, everything else trains)")
     parser.add_argument('--output_dir', default='trainings', help='Output directory')
 
     
@@ -442,6 +444,8 @@ def main():
     parser.add_argument('--input_width', type=int, default=128, help='Input image width')
     parser.add_argument('--num_frames', type=int, default=1, help='Frames per sample (early-fused channel stack). 1 = single frame')
     parser.add_argument('--frame_stride', type=int, default=1, help='Temporal stride between stacked frames')
+    parser.add_argument('--target_fps', type=int, default=0,
+                       help='If >0, normalize multi-frame stride per video to this fps (e.g. 30: a 60fps clip skips every other frame, a 30fps clip uses consecutive frames). Requires fps_map.json and num_frames>1.')
     parser.add_argument('--augment', action='store_true', default=True, help='Use data augmentation')
     
     # Class balancing arguments
@@ -488,7 +492,12 @@ def main():
     # Create experiment name
     exp_name = f"f{args.fold}_{args.model_name}_{args.input_height}x{args.input_width}_bs{args.batch_size}_lr{args.lr:.0e}_ep{args.epochs}_{args.optimizer}_{args.scheduler}"
     if args.num_frames > 1:
-        exp_name += f"_nf{args.num_frames}s{args.frame_stride}"
+        if args.target_fps:
+            exp_name += f"_nf{args.num_frames}fps{args.target_fps}"
+        else:
+            exp_name += f"_nf{args.num_frames}s{args.frame_stride}"
+    if args.val_split != 'fold':
+        exp_name += f"_{args.val_split}"
     if args.weight_decay != 1e-4:
         exp_name += f"_wd{args.weight_decay:.0e}"
     if args.augment:
@@ -531,10 +540,12 @@ def main():
     # Create datasets
     train_dataset = BowlingDataset(Path(args.data_dir), Mode.TRAIN, fold=args.fold, num_folds=args.num_folds,
                                    num_frames=args.num_frames, frame_stride=args.frame_stride,
-                                   neg_skip_prob=args.neg_skip_prob, transform=train_transform)
+                                   neg_skip_prob=args.neg_skip_prob, transform=train_transform,
+                                   val_split=args.val_split, target_fps=args.target_fps)
     val_dataset = BowlingDataset(Path(args.data_dir), Mode.VAL, fold=args.fold, num_folds=args.num_folds,
                                  num_frames=args.num_frames, frame_stride=args.frame_stride,
-                                 transform=val_transform)
+                                 transform=val_transform,
+                                 val_split=args.val_split, target_fps=args.target_fps)
 
     # Create data loaders
     train_loader = DataLoader(

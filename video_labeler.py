@@ -88,7 +88,8 @@ def label_video(video_path, class_name):
             break
         key = cv2.waitKey(0) & 0xFF
         if key == ord('q'):
-            add_instance(current_start, current_end, instances)  # Try to add current instance before quitting
+            if current_start is not None and current_end is not None:
+                add_instance(current_start, current_end, instances)  # Try to add current instance before quitting
             break
         elif key == ord('s'):
             current_start = current_frame

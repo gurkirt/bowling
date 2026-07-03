@@ -37,13 +37,15 @@ def glob_videos(video_dir: pathlib.Path, istest: bool) -> Iterator[pathlib.Path]
         raise ValueError("No video files found in the directory: %s." % video_dir)
 
 def write_all(output_dir: pathlib.Path, video_dir: pathlib.Path, istest: bool) -> None:
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
+    # if output_dir.exists():
+    #     shutil.rmtree(output_dir)
     frames_dir = output_dir / 'frames'
-    frames_dir.mkdir(parents=True)
+    frames_dir.mkdir(parents=True, exist_ok=True)
+    video_list = list(glob_videos(video_dir, istest))
+    print(f"Extracting frames from {len(video_list)} videos in {video_dir} to {frames_dir}")
     with Pool(processes=min(8, mp.cpu_count())) as pool:
         pool.starmap(write_one, [(video, frames_dir) 
-                                 for video in glob_videos(video_dir, istest)])
+                                 for video in video_list])
 
 
 
@@ -96,6 +98,25 @@ def _summary(frame_dir: pathlib.Path) -> str:
         total += counts[False] + counts[True]
     return f"Total frames: {total}, In action: {int(in_action*100/total)}% ({in_action}), Not in action: {int(100 *not_in_action/total)}% ({not_in_action})."
 
+def write_fps_map(video_dir: pathlib.Path, output_path: pathlib.Path) -> None:
+    """Probe each video's fps and write a {video_stem: fps} JSON map.
+
+    Used by the dataset for fps-normalized multi-frame striding (e.g. sampling a
+    60fps clip every 2nd frame and a 30fps clip every frame -> same temporal step).
+    """
+    fps_map = {}
+    for video in glob_videos(video_dir, istest=False):
+        cap = cv2.VideoCapture(str(video))
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        cap.release()
+        if fps and fps > 0:
+            fps_map[video.stem] = round(float(fps), 3)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(fps_map, f, indent=2, sort_keys=True)
+    print(f"Wrote fps map for {len(fps_map)} videos to {output_path}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Extract the frames annotated with whether the baller is in balling action.")
     parser.add_argument("--video_dir", default="videos", type=pathlib.Path,
@@ -108,8 +129,15 @@ def main():
                        help="When --summary is set, the script displays stats on the produced training set.")
     parser.add_argument("--summary_dir", type=pathlib.Path, default=None,
                        help="The frames directory for the summary is the first positional arg.")
+    parser.add_argument("--fps_map", default=False, action='store_true',
+                       help="Probe each video's fps and write fps_map.json (used for fps-normalized multi-frame striding).")
+    parser.add_argument("--fps_map_out", type=pathlib.Path, default=pathlib.Path("fps_map.json"),
+                       help="Output path for the fps map (default: fps_map.json).")
 
     args = parser.parse_args()
+    if args.fps_map:
+        write_fps_map(args.video_dir, args.fps_map_out)
+        return
     if args.summary:
         if args.summary_dir is None:
             parser.error("When --summary is set, the frames directory must be provided as the first positional arg.")
