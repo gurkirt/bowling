@@ -2,8 +2,8 @@
 //  HighlightsView.swift
 //  CricReel
 //
-//  On-demand highlight reels (filter by 4s/6s/wickets) plus the auto over-reels that
-//  were rendered during scoring. Reels can be replayed and shared.
+//  Default reels (each batting team's innings) + custom reels (pick 4s/6s/wickets from
+//  either or both innings). Reels can be replayed and shared.
 //
 
 import SwiftUI
@@ -13,94 +13,142 @@ import AVKit
 struct HighlightsView: View {
     @Bindable var match: Match
     @ObservedObject private var builder = HighlightBuilder.shared
+    @Query(sort: \Player.name) private var players: [Player]
 
     @State private var selectedTags: Set<HighlightTag> = Set(HighlightTag.allCases)
+    @State private var selectedInnings: Set<Int> = [1, 2]
     @State private var reels: [URL] = []
     @State private var playing: PlayableURL?
 
+    private var lookup: PlayerLookup { PlayerLookup(players) }
+    private var sortedInnings: [Innings] { match.innings.sorted { $0.order < $1.order } }
+    private var matchLabel: String {
+        "\(match.teamAName)-v-\(match.teamBName)".replacingOccurrences(of: " ", with: "")
+    }
+
     var body: some View {
         List {
-            Section("Build a Reel") {
-                ForEach(HighlightTag.allCases) { tag in
-                    Button {
-                        toggle(tag)
-                    } label: {
-                        HStack {
-                            Text(tag.displayName).foregroundStyle(.primary)
-                            Spacer()
-                            Image(systemName: selectedTags.contains(tag) ? "checkmark.circle.fill" : "circle")
-                                .foregroundStyle(selectedTags.contains(tag) ? .blue : .secondary)
-                        }
-                    }
-                }
-                Button {
-                    buildReel()
-                } label: {
-                    if builder.isBuilding {
-                        HStack { ProgressView(); Text("Building…") }
-                    } else {
-                        Label("Build Highlight Reel", systemImage: "film.stack")
-                    }
-                }
-                .disabled(builder.isBuilding || matchingClipFilenames().isEmpty)
-
-                if matchingClipFilenames().isEmpty {
-                    Text("No clips match the selected filters yet.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                if let msg = builder.statusMessage {
-                    Text(msg).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-
-            Section("Reels") {
-                if reels.isEmpty {
-                    Text("No reels yet. Over reels are built automatically; build a custom one above.")
-                        .font(.caption).foregroundStyle(.secondary)
-                }
-                ForEach(reels, id: \.self) { url in
-                    HStack {
-                        Button {
-                            playing = PlayableURL(url: url)
-                        } label: {
-                            Label(url.deletingPathExtension().lastPathComponent, systemImage: "play.rectangle")
-                                .foregroundStyle(.primary)
-                        }
-                        Spacer()
-                        ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
-                    }
-                }
-                .onDelete(perform: deleteReels)
-            }
+            defaultSection
+            customSection
+            reelsSection
         }
         .navigationTitle("Highlights")
         .navigationBarTitleDisplayMode(.inline)
         .onAppear(perform: loadReels)
         .onChange(of: builder.lastReelURL) { _, _ in loadReels() }
-        .sheet(item: $playing) { item in
-            ReelPlayerView(url: item.url)
+        .sheet(item: $playing) { ReelPlayerView(url: $0.url) }
+    }
+
+    // MARK: - Default reels
+
+    private var defaultSection: some View {
+        Section("Default Reels") {
+            ForEach(sortedInnings) { innings in
+                let name = innings.battingTeamIsA ? match.teamAName : match.teamBName
+                let clips = builder.reelClips(from: highlightDeliveries(innings, tags: Set(HighlightTag.allCases)),
+                                              lookup: lookup)
+                Button {
+                    buildReel(clips: clips, name: "\(matchLabel)_\(name.replacingOccurrences(of: " ", with: ""))")
+                } label: {
+                    HStack {
+                        Label("\(name) — Innings \(innings.order)", systemImage: "film")
+                        Spacer()
+                        Text(clips.isEmpty ? "No clips" : "\(clips.count)")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
+                }
+                .disabled(clips.isEmpty || builder.isBuilding)
+            }
         }
     }
 
-    private func toggle(_ tag: HighlightTag) {
+    // MARK: - Custom reel
+
+    private var customSection: some View {
+        Section("Custom Reel") {
+            ForEach(HighlightTag.allCases) { tag in
+                toggleRow(tag.displayName, isOn: selectedTags.contains(tag)) { toggleTag(tag) }
+            }
+            ForEach(sortedInnings) { innings in
+                let name = innings.battingTeamIsA ? match.teamAName : match.teamBName
+                toggleRow("\(name) innings", isOn: selectedInnings.contains(innings.order)) {
+                    toggleInnings(innings.order)
+                }
+            }
+            Button {
+                buildReel(clips: customClips, name: "\(matchLabel)_custom")
+            } label: {
+                if builder.isBuilding {
+                    HStack { ProgressView(); Text("Building…") }
+                } else {
+                    Label("Build Custom Reel", systemImage: "slider.horizontal.3")
+                }
+            }
+            .disabled(customClips.isEmpty || builder.isBuilding)
+            if let msg = builder.statusMessage {
+                Text(msg).font(.caption).foregroundStyle(.secondary)
+            }
+        }
+    }
+
+    // MARK: - Reels list
+
+    private var reelsSection: some View {
+        Section("Saved Reels") {
+            if reels.isEmpty {
+                Text("Over reels build automatically; create match reels above.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            ForEach(reels, id: \.self) { url in
+                HStack {
+                    Button {
+                        playing = PlayableURL(url: url)
+                    } label: {
+                        Label(url.deletingPathExtension().lastPathComponent, systemImage: "play.rectangle")
+                            .foregroundStyle(.primary).lineLimit(1)
+                    }
+                    Spacer()
+                    ShareLink(item: url) { Image(systemName: "square.and.arrow.up") }
+                }
+            }
+            .onDelete(perform: deleteReels)
+        }
+    }
+
+    // MARK: - Helpers
+
+    private func toggleRow(_ title: String, isOn: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack {
+                Text(title).foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: isOn ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isOn ? .blue : .secondary)
+            }
+        }
+    }
+
+    private func highlightDeliveries(_ innings: Innings, tags: Set<HighlightTag>) -> [Delivery] {
+        innings.orderedDeliveries.filter { !Set($0.highlightTags).isDisjoint(with: tags) }
+    }
+
+    private var customClips: [ReelClip] {
+        let tags = selectedTags.isEmpty ? Set(HighlightTag.allCases) : selectedTags
+        let deliveries = sortedInnings
+            .filter { selectedInnings.contains($0.order) }
+            .flatMap { highlightDeliveries($0, tags: tags) }
+        return builder.reelClips(from: deliveries, lookup: lookup)
+    }
+
+    private func toggleTag(_ tag: HighlightTag) {
         if selectedTags.contains(tag) { selectedTags.remove(tag) } else { selectedTags.insert(tag) }
     }
-
-    private func matchingClipFilenames() -> [String] {
-        let tags = selectedTags.isEmpty ? Set(HighlightTag.allCases) : selectedTags
-        return match.innings
-            .sorted { $0.order < $1.order }
-            .flatMap { $0.orderedDeliveries }
-            .filter { !Set($0.highlightTags).isDisjoint(with: tags) }
-            .compactMap { $0.clipFilename }
-            .filter { ClipStore.clipExists($0) }
+    private func toggleInnings(_ order: Int) {
+        if selectedInnings.contains(order) { selectedInnings.remove(order) } else { selectedInnings.insert(order) }
     }
 
-    private func buildReel() {
-        let filenames = matchingClipFilenames()
-        let name = "reel_\(match.teamAName)_\(match.teamBName)"
-            .replacingOccurrences(of: " ", with: "-")
-        Task { _ = await builder.buildReel(clipFilenames: filenames, name: name); loadReels() }
+    private func buildReel(clips: [ReelClip], name: String) {
+        Task { _ = await builder.buildReel(clips: clips, name: name); loadReels() }
     }
 
     private func loadReels() {

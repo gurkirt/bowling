@@ -201,10 +201,10 @@ enum ScoringEngine {
 
     // MARK: - Commentary & highlights
 
-    static func commentary(over: Int, ball: Int, bowler: String, striker: String,
+    static func commentary(bowler: String, striker: String,
                            input: BallInput, resolved: ResolvedDelivery,
                            dismissedName: String?, fielderName: String?) -> String {
-        let prefix = "\(over).\(ball) \(bowler) to \(striker),"
+        let prefix = "\(bowler) to \(striker),"
         if input.isWicket {
             let how = input.dismissal?.displayName ?? "Out"
             var line = "\(prefix) OUT! \(how)"

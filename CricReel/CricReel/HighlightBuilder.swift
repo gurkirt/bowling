@@ -2,13 +2,21 @@
 //  HighlightBuilder.swift
 //  CricReel
 //
-//  Stitches per-ball clips into highlight reels using AVFoundation. All rendering runs
-//  off the scoring path (async) so live scoring is never blocked.
+//  Stitches per-ball clips into highlight reels with a two-line delivery overlay burned
+//  into the top of each clip. All rendering runs off the scoring path (async).
 //
 
 import Foundation
 import AVFoundation
+import UIKit
 import Combine
+
+/// A clip plus the overlay text to burn onto it.
+struct ReelClip {
+    let url: URL
+    let line1: String
+    let line2: String
+}
 
 @MainActor
 final class HighlightBuilder: ObservableObject {
@@ -20,53 +28,50 @@ final class HighlightBuilder: ObservableObject {
 
     private init() {}
 
-    /// Auto reel for a completed over: only its highlight deliveries (4s/6s/wickets).
-    func buildOverReel(match: Match, innings: Innings, overNumber: Int) {
-        let urls = innings.orderedDeliveries
-            .filter { $0.overNumber == overNumber && !$0.highlightTags.isEmpty }
-            .compactMap { $0.clipFilename }
-            .filter { ClipStore.clipExists($0) }
-            .map { ClipStore.url(forClip: $0) }
-        guard !urls.isEmpty else { return }
-
+    /// Auto reel for a completed over (its 4s/6s/wickets).
+    func buildOverReel(match: Match, innings: Innings, overNumber: Int, lookup: PlayerLookup) {
+        let clips = reelClips(from: innings.orderedDeliveries.filter {
+            $0.overNumber == overNumber && !$0.highlightTags.isEmpty
+        }, lookup: lookup)
+        guard !clips.isEmpty else { return }
         let out = ClipStore.highlightsDirectory
             .appendingPathComponent("over_\(innings.order)_\(overNumber + 1)_\(shortID()).mp4")
-        render(urls: urls, output: out, doneMessage: "Over \(overNumber + 1) reel ready")
+        render(clips: clips, output: out, doneMessage: "Over \(overNumber + 1) reel ready")
     }
 
-    /// On-demand reel from an explicit list of clip filenames (gathered by the caller).
-    /// Returns the output URL, or nil on failure.
-    func buildReel(clipFilenames: [String], name: String) async -> URL? {
-        let urls = clipFilenames
-            .filter { ClipStore.clipExists($0) }
-            .map { ClipStore.url(forClip: $0) }
-        guard !urls.isEmpty else { return nil }
-
-        let out = ClipStore.highlightsDirectory
-            .appendingPathComponent("\(name)_\(shortID()).mp4")
+    /// Build a reel from explicit clips (gathered by the caller). Returns the URL, or nil.
+    func buildReel(clips: [ReelClip], name: String) async -> URL? {
+        guard !clips.isEmpty else { return nil }
+        let out = ClipStore.highlightsDirectory.appendingPathComponent("\(name)_\(shortID()).mp4")
         isBuilding = true
         statusMessage = "Building reel…"
         do {
-            let result = try await Self.stitch(clipURLs: urls, outputURL: out)
-            isBuilding = false
-            statusMessage = "Reel ready"
-            lastReelURL = result
+            let result = try await Self.stitch(clips: clips, outputURL: out)
+            isBuilding = false; statusMessage = "Reel ready"; lastReelURL = result
             return result
         } catch {
-            isBuilding = false
-            statusMessage = "Reel failed: \(error.localizedDescription)"
+            isBuilding = false; statusMessage = "Reel failed: \(error.localizedDescription)"
             return nil
+        }
+    }
+
+    /// Map deliveries (that have an existing clip) to ReelClips with overlay text.
+    func reelClips(from deliveries: [Delivery], lookup: PlayerLookup) -> [ReelClip] {
+        deliveries.compactMap { d in
+            guard let name = d.clipFilename, ClipStore.clipExists(name) else { return nil }
+            let (l1, l2) = DeliveryFormatting.overlayLines(d, lookup: lookup)
+            return ReelClip(url: ClipStore.url(forClip: name), line1: l1, line2: l2)
         }
     }
 
     // MARK: - Internal
 
-    private func render(urls: [URL], output: URL, doneMessage: String) {
+    private func render(clips: [ReelClip], output: URL, doneMessage: String) {
         isBuilding = true
         statusMessage = "Building reel…"
         Task {
             do {
-                let result = try await Self.stitch(clipURLs: urls, outputURL: output)
+                let result = try await Self.stitch(clips: clips, outputURL: output)
                 self.lastReelURL = result
                 self.statusMessage = doneMessage
             } catch {
@@ -78,8 +83,9 @@ final class HighlightBuilder: ObservableObject {
 
     private func shortID() -> String { String(UUID().uuidString.prefix(6)) }
 
-    /// Concatenate the given (silent) clips into a single MP4.
-    nonisolated static func stitch(clipURLs: [URL], outputURL: URL) async throws -> URL {
+    // MARK: - Stitching + overlay burn-in
+
+    nonisolated static func stitch(clips: [ReelClip], outputURL: URL) async throws -> URL {
         let composition = AVMutableComposition()
         guard let videoTrack = composition.addMutableTrack(
             withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
@@ -87,23 +93,42 @@ final class HighlightBuilder: ObservableObject {
         }
 
         var cursor = CMTime.zero
-        var appliedTransform = false
+        var renderSize = CGSize(width: 1080, height: 1920)
+        var preferred = CGAffineTransform.identity
+        var segments: [(start: CMTime, duration: CMTime, clip: ReelClip)] = []
 
-        for url in clipURLs {
-            let asset = AVURLAsset(url: url)
+        for clip in clips {
+            let asset = AVURLAsset(url: clip.url)
             let tracks = try await asset.loadTracks(withMediaType: .video)
             guard let src = tracks.first else { continue }
             let duration = try await asset.load(.duration)
-            let range = CMTimeRange(start: .zero, duration: duration)
-            try videoTrack.insertTimeRange(range, of: src, at: cursor)
-            if !appliedTransform {
-                videoTrack.preferredTransform = try await src.load(.preferredTransform)
-                appliedTransform = true
-            }
+            try videoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: duration),
+                                           of: src, at: cursor)
+            let naturalSize = try await src.load(.naturalSize)
+            preferred = try await src.load(.preferredTransform)
+            let rect = CGRect(origin: .zero, size: naturalSize).applying(preferred)
+            renderSize = CGSize(width: abs(rect.width), height: abs(rect.height))
+            segments.append((cursor, duration, clip))
             cursor = CMTimeAdd(cursor, duration)
         }
-
         guard cursor > .zero else { throw ReelError.noUsableClips }
+        videoTrack.preferredTransform = preferred
+
+        let total = cursor
+        let (parentLayer, videoLayer) = await Self.buildLayers(renderSize: renderSize,
+                                                               segments: segments, total: total)
+
+        let videoComposition = AVMutableVideoComposition()
+        videoComposition.renderSize = renderSize
+        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: total)
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
+        layerInstruction.setTransform(preferred, at: .zero)
+        instruction.layerInstructions = [layerInstruction]
+        videoComposition.instructions = [instruction]
+        videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
+            postProcessingAsVideoLayer: videoLayer, in: parentLayer)
 
         try? FileManager.default.removeItem(at: outputURL)
         guard let export = AVAssetExportSession(
@@ -112,20 +137,77 @@ final class HighlightBuilder: ObservableObject {
         }
         export.outputURL = outputURL
         export.outputFileType = .mp4
+        export.videoComposition = videoComposition
         export.shouldOptimizeForNetworkUse = true
 
         return try await withCheckedThrowingContinuation { continuation in
             export.exportAsynchronously {
                 switch export.status {
-                case .completed:
-                    continuation.resume(returning: outputURL)
-                case .failed, .cancelled:
-                    continuation.resume(throwing: export.error ?? ReelError.exportFailed)
-                default:
-                    continuation.resume(throwing: ReelError.exportFailed)
+                case .completed: continuation.resume(returning: outputURL)
+                case .failed, .cancelled: continuation.resume(throwing: export.error ?? ReelError.exportFailed)
+                default: continuation.resume(throwing: ReelError.exportFailed)
                 }
             }
         }
+    }
+
+    /// Build the parent/video layers plus a timed text overlay for each segment.
+    @MainActor
+    private static func buildLayers(renderSize: CGSize,
+                                    segments: [(start: CMTime, duration: CMTime, clip: ReelClip)],
+                                    total: CMTime) -> (CALayer, CALayer) {
+        let parentLayer = CALayer()
+        let videoLayer = CALayer()
+        parentLayer.frame = CGRect(origin: .zero, size: renderSize)
+        videoLayer.frame = parentLayer.frame
+        parentLayer.addSublayer(videoLayer)
+
+        let totalSeconds = CMTimeGetSeconds(total)
+        for seg in segments {
+            let text = Self.makeTextLayer(seg.clip, renderSize: renderSize)
+            // Origin is bottom-left for the animation tool → place near the top (10–30%).
+            text.frame = CGRect(x: renderSize.width * 0.05, y: renderSize.height * 0.70,
+                                width: renderSize.width * 0.90, height: renderSize.height * 0.18)
+            text.opacity = 0
+            let start = CMTimeGetSeconds(seg.start)
+            let end = start + CMTimeGetSeconds(seg.duration)
+            let anim = CAKeyframeAnimation(keyPath: "opacity")
+            anim.values = [0, 1, 1, 0]
+            anim.keyTimes = [NSNumber(value: max(0, start / totalSeconds)),
+                             NSNumber(value: max(0, start / totalSeconds)),
+                             NSNumber(value: min(1, end / totalSeconds)),
+                             NSNumber(value: min(1, end / totalSeconds))]
+            anim.calculationMode = .discrete
+            anim.beginTime = AVCoreAnimationBeginTimeAtZero
+            anim.duration = totalSeconds
+            anim.isRemovedOnCompletion = false
+            anim.fillMode = .both
+            text.add(anim, forKey: "opacity")
+            parentLayer.addSublayer(text)
+        }
+        return (parentLayer, videoLayer)
+    }
+
+    @MainActor
+    private static func makeTextLayer(_ clip: ReelClip, renderSize: CGSize) -> CATextLayer {
+        let layer = CATextLayer()
+        layer.contentsScale = 2
+        layer.alignmentMode = .center
+        layer.isWrapped = true
+        layer.truncationMode = .end
+
+        let f1 = UIFont.systemFont(ofSize: renderSize.height * 0.030, weight: .bold)
+        let f2 = UIFont.systemFont(ofSize: renderSize.height * 0.026, weight: .semibold)
+        let shadow = NSShadow()
+        shadow.shadowColor = UIColor.black.withAlphaComponent(0.8)
+        shadow.shadowBlurRadius = 6
+        shadow.shadowOffset = .zero
+        let attr = NSMutableAttributedString(string: clip.line1 + "\n", attributes: [
+            .font: f1, .foregroundColor: UIColor.white, .shadow: shadow])
+        attr.append(NSAttributedString(string: clip.line2, attributes: [
+            .font: f2, .foregroundColor: UIColor.white, .shadow: shadow]))
+        layer.string = attr
+        return layer
     }
 
     enum ReelError: LocalizedError {

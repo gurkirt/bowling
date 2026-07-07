@@ -110,7 +110,7 @@ struct MatchSetupView: View {
                 LineupPicker(team: team, required: playersPerSide, lineup: lineup)
             } label: {
                 HStack {
-                    Text("Select batting order")
+                    Text("Select players")
                     Spacer()
                     Text(lineup.wrappedValue.count == playersPerSide ? "Ready" : "\(lineup.wrappedValue.count)/\(playersPerSide)")
                         .foregroundStyle(lineup.wrappedValue.count == playersPerSide ? .green : .secondary)

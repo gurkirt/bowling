@@ -29,7 +29,7 @@ final class SettingsStore: ObservableObject {
         frameRate = FrameRateOption(rawValue: d.string(forKey: "fps") ?? "") ?? .fps30
         preTriggerDuration = d.object(forKey: "pre") as? Double ?? 1.0
         postTriggerDuration = d.object(forKey: "post") as? Double ?? 2.0
-        cooldownDuration = d.object(forKey: "cool") as? Double ?? 8.0
+        cooldownDuration = d.object(forKey: "cool") as? Double ?? 2.0
         scoreThreshold = d.object(forKey: "thr") as? Double ?? 0.5
         windowSize = d.object(forKey: "win") as? Int ?? 8
         requiredActionCount = d.object(forKey: "req") as? Int ?? 4
