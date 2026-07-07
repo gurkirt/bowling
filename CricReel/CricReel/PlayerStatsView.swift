@@ -13,7 +13,6 @@ struct PlayerStatsView: View {
     @Query private var allDeliveries: [Delivery]
 
     private var lookup: PlayerLookup { PlayerLookup(players) }
-    private var deliveryData: [DeliveryData] { allDeliveries.map(DeliveryData.init) }
 
     var body: some View {
         NavigationStack {
@@ -23,8 +22,8 @@ struct PlayerStatsView: View {
                                            systemImage: "chart.bar",
                                            description: Text("Career stats appear once matches are scored."))
                 }
-                let batting = StatsBuilder.batting(from: deliveryData)
-                let bowling = StatsBuilder.bowling(from: deliveryData)
+                let batting = StatsBuilder.batting(from: allDeliveries)
+                let bowling = StatsBuilder.bowling(from: allDeliveries)
                 ForEach(players) { player in
                     NavigationLink {
                         PlayerStatDetail(

@@ -26,7 +26,7 @@ struct ScorecardView: View {
 
     @ViewBuilder
     private func inningsSection(_ innings: Innings) -> some View {
-        let deliveries = MatchScoring.deliveryData(for: innings)
+        let deliveries = innings.orderedDeliveries
         let state = MatchScoring.state(for: innings, in: match)
         let batting = StatsBuilder.batting(from: deliveries)
         let bowling = StatsBuilder.bowling(from: deliveries)
@@ -111,7 +111,7 @@ struct ScorecardView: View {
     }
 
     /// Bowlers in the order they first bowled.
-    private func orderedBowlerIDs(_ deliveries: [DeliveryData]) -> [UUID] {
+    private func orderedBowlerIDs(_ deliveries: [Delivery]) -> [UUID] {
         var seen: [UUID] = []
         for d in deliveries where !seen.contains(d.bowlerID) {
             seen.append(d.bowlerID)

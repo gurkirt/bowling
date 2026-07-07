@@ -18,6 +18,8 @@ struct AppRootView: View {
                 .tabItem { Label("Players", systemImage: "person.3") }
             TeamListView()
                 .tabItem { Label("Teams", systemImage: "person.3.sequence") }
+            SettingsView()
+                .tabItem { Label("Settings", systemImage: "gearshape") }
         }
     }
 }

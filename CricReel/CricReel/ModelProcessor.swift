@@ -4,44 +4,45 @@
 //
 //  Runs the bundled CoreML cricket-action classifier on each camera frame.
 //  Pre-processes: crop top 32%, centered square, resize 256×256, pack NCHW float32.
-//  Sliding-window trigger: ≥4 of last 8 frames favour "action" → fires onTriggerDetected.
-//
-//  Trimmed from CriClips: debug preview images and on-device parity testing removed.
+//  Publishes a higher-resolution square preview (the exact region fed to the model).
+//  Sliding-window trigger: ≥N of last W frames favour "action" → fires onTriggerDetected.
 //
 
 import CoreML
 import AVFoundation
 import CoreImage
+import UIKit
 
 class ModelProcessor: ObservableObject {
     @Published var isModelLoaded = false
+    /// Higher-resolution square crop (the model-input region) for the live UI.
+    @Published var previewImage: UIImage?
     @Published var lastActionScore: Float = 0
     @Published var lastNoActionScore: Float = 0
 
-    // ── Run / pause ────────────────────────────────────────────────────────
     @Published var isRunning: Bool = true {
         didSet {
             if !isRunning {
                 DispatchQueue.main.async {
                     self.lastActionScore   = 0
                     self.lastNoActionScore = 0
+                    self.previewImage      = nil
                     self.recentActionWins.removeAll()
                 }
             }
         }
     }
-    /// Human-readable description of the MLComputeUnits the model was loaded with.
     @Published var computeUnitsLabel: String = ""
 
-    // ── Configurable trigger settings ──────────────────────────────────────
+    // Configurable trigger settings
     @Published var windowSize: Int = 8 {
         didSet { DispatchQueue.main.async { self.recentActionWins.removeAll() } }
     }
     @Published var requiredActionCount: Int = 4
-    /// Minimum action score for a frame to count as an "action win" (0.0–1.0).
     @Published var scoreThreshold: Double = 0.5
-    /// Run inference on every Nth camera frame (1 = every frame, 2 = every other, etc.).
     @Published var inferenceFrameInterval: Int = 1
+    /// Side length (px) of the published preview crop.
+    var previewResolution: CGFloat = 384
 
     private var recentActionWins: [Bool] = []
     private var model: MLModel?
@@ -50,6 +51,7 @@ class ModelProcessor: ObservableObject {
 
     private let visionQueue = DispatchQueue(label: "cricreel.model.queue", qos: .userInteractive)
     private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+    private var frameCounter = 0
     private var inferenceCounter = 0
 
     var onTriggerDetected: (() -> Void)?
@@ -66,12 +68,10 @@ class ModelProcessor: ObservableObject {
             guard let self else { return }
             for bundle in [Bundle.main, Bundle(for: ModelProcessor.self)] {
                 if let url = bundle.url(forResource: "fastvit_sa12_exp21", withExtension: "mlpackage") {
-                    self.tryLoad(url: url)
-                    return
+                    self.tryLoad(url: url); return
                 }
                 if let url = bundle.url(forResource: "fastvit_sa12_exp21", withExtension: "mlmodelc") {
-                    self.tryLoad(url: url)
-                    return
+                    self.tryLoad(url: url); return
                 }
             }
             print("❌ [CricReel] fastvit_sa12_exp21.mlpackage not found in bundle")
@@ -81,7 +81,7 @@ class ModelProcessor: ObservableObject {
     private func tryLoad(url: URL) {
         do {
             let cfg = MLModelConfiguration()
-            cfg.computeUnits = .all  // ANE + GPU + CPU for best on-device performance
+            cfg.computeUnits = .all
             let loaded = try MLModel(contentsOf: url, configuration: cfg)
             readOutputNameFromMetadata(loaded)
             let label = Self.computeUnitsString(cfg.computeUnits)
@@ -119,35 +119,37 @@ class ModelProcessor: ObservableObject {
         guard isModelLoaded, isRunning, let model else { return }
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
 
-        // Throttle: skip frames according to inferenceFrameInterval
         inferenceCounter &+= 1
         guard inferenceCounter % max(1, inferenceFrameInterval) == 0 else { return }
+        frameCounter &+= 1
 
-        // Build CIImage from camera pixel buffer
         var image = CIImage(cvPixelBuffer: pixelBuffer)
         let extent = image.extent
         let w = extent.width
         let h = extent.height
 
-        // ── Step 1: Remove top 32%, keep bottom 68% ──────────────────────────
-        // CIImage origin is bottom-left, so keeping y=minY … keptHeight gives the visual bottom.
+        // Remove top 32%, keep bottom 68%.
         let keptH = h * 0.68
         image = image.cropped(to: CGRect(x: extent.minX, y: extent.minY, width: w, height: keptH))
 
-        // ── Step 2: Centered square crop ──────────────────────────────────────
+        // Centered square crop.
         let cropExt = image.extent
         let side = min(cropExt.width, cropExt.height)
-        let squareRect = CGRect(
-            x: cropExt.midX - side / 2,
-            y: cropExt.midY - side / 2,
-            width: side, height: side)
-        image = image.cropped(to: squareRect)
+        let squareRect = CGRect(x: cropExt.midX - side / 2, y: cropExt.midY - side / 2,
+                                width: side, height: side)
+        let square = image.cropped(to: squareRect)
 
-        // ── Step 3: Resize to 256 × 256 ───────────────────────────────────────
+        // Higher-resolution preview of the model-input region (every 4 frames).
+        if frameCounter % 4 == 0 {
+            let target = CGSize(width: previewResolution, height: previewResolution)
+            if let ui = renderUIImage(from: square, targetSize: target) {
+                DispatchQueue.main.async { [weak self] in self?.previewImage = ui }
+            }
+        }
+
+        // Resize to 256×256 for inference.
         let scale = 256.0 / side
-        let resized = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-
-        // ── Step 4: Pack into NCHW float32 and run inference ──────────────────
+        let resized = square.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
         guard let pb = createPixelBuffer(from: resized, width: 256, height: 256) else { return }
 
         visionQueue.async { [weak self] in
@@ -156,11 +158,9 @@ class ModelProcessor: ObservableObject {
                 let inputArray = try self.makeNCHWArray(from: pb)
                 let input = try MLDictionaryFeatureProvider(dictionary: [self.inputFeatureName: inputArray])
                 let output = try model.prediction(from: input)
-
                 let outKey = output.featureNames.contains(self.outputFeatureName)
                     ? self.outputFeatureName
                     : (model.modelDescription.outputDescriptionsByName.keys.first ?? self.outputFeatureName)
-
                 if let fv = output.featureValue(for: outKey), let arr = fv.multiArrayValue {
                     let noAction = Float(truncating: arr[0])
                     let action   = Float(truncating: arr[1])
@@ -193,11 +193,21 @@ class ModelProcessor: ObservableObject {
         }
     }
 
-    func resetTrigger() {
-        recentActionWins.removeAll()
-    }
+    func resetTrigger() { recentActionWins.removeAll() }
 
     // MARK: - Image Utilities
+
+    private func renderUIImage(from ciImage: CIImage, targetSize: CGSize) -> UIImage? {
+        let translated = ciImage.transformed(
+            by: CGAffineTransform(translationX: -ciImage.extent.origin.x,
+                                  y: -ciImage.extent.origin.y))
+        let sx = targetSize.width  / translated.extent.width
+        let sy = targetSize.height / translated.extent.height
+        let scaled = translated.transformed(by: CGAffineTransform(scaleX: sx, y: sy))
+        guard let cg = ciContext.createCGImage(scaled, from: CGRect(origin: .zero, size: targetSize))
+        else { return nil }
+        return UIImage(cgImage: cg)
+    }
 
     private func createPixelBuffer(from ciImage: CIImage, width: Int, height: Int) -> CVPixelBuffer? {
         let attrs: [String: Any] = [
@@ -216,8 +226,6 @@ class ModelProcessor: ObservableObject {
         return buffer
     }
 
-    /// Pack a 256×256 BGRA pixel buffer into an NCHW float32 MLMultiArray [1,3,256,256].
-    /// Applies ImageNet normalisation: (pixel/255 − mean) / std  (matches the Python export pipeline).
     private func makeNCHWArray(from pixelBuffer: CVPixelBuffer) throws -> MLMultiArray {
         CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
         defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
@@ -235,18 +243,16 @@ class ModelProcessor: ObservableObject {
         let pixels = base.assumingMemoryBound(to: UInt8.self)
         let stride = width * height
 
-        // ImageNet normalisation constants (R, G, B order)
         let meanR: Float32 = 0.485, meanG: Float32 = 0.456, meanB: Float32 = 0.406
         let stdR:  Float32 = 0.229, stdG:  Float32 = 0.224, stdB:  Float32 = 0.225
 
         let ptr = UnsafeMutablePointer<Float32>(OpaquePointer(array.dataPointer))
-
         for y in 0 ..< height {
             for x in 0 ..< width {
                 let off = y * bytesPerRow + x * 4
-                ptr[0 * stride + y * width + x] = (Float32(pixels[off + 2]) / 255.0 - meanR) / stdR // R
-                ptr[1 * stride + y * width + x] = (Float32(pixels[off + 1]) / 255.0 - meanG) / stdG // G
-                ptr[2 * stride + y * width + x] = (Float32(pixels[off + 0]) / 255.0 - meanB) / stdB // B
+                ptr[0 * stride + y * width + x] = (Float32(pixels[off + 2]) / 255.0 - meanR) / stdR
+                ptr[1 * stride + y * width + x] = (Float32(pixels[off + 1]) / 255.0 - meanG) / stdG
+                ptr[2 * stride + y * width + x] = (Float32(pixels[off + 0]) / 255.0 - meanB) / stdB
             }
         }
         return array

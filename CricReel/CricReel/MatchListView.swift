@@ -93,6 +93,13 @@ struct MatchHomeView: View {
                 }
             }
 
+            if let result = matchResult {
+                Section {
+                    Label(result, systemImage: "trophy")
+                        .font(.headline)
+                }
+            }
+
             Section {
                 if let innings = currentInnings, !innings.isComplete {
                     NavigationLink {
@@ -135,6 +142,27 @@ struct MatchHomeView: View {
     private var currentInnings: Innings? {
         let sorted = match.innings.sorted { $0.order < $1.order }
         return sorted.first(where: { !$0.isComplete }) ?? sorted.last
+    }
+
+    /// Human-readable result once both innings exist and the match is decided.
+    private var matchResult: String? {
+        guard match.status == .completed || match.innings.contains(where: { $0.order == 2 }) else { return nil }
+        guard let first = match.innings.first(where: { $0.order == 1 }),
+              let second = match.innings.first(where: { $0.order == 2 }) else { return nil }
+        let s1 = MatchScoring.state(for: first, in: match)
+        let s2 = MatchScoring.state(for: second, in: match)
+        let firstName = first.battingTeamIsA ? match.teamAName : match.teamBName
+        let secondName = second.battingTeamIsA ? match.teamAName : match.teamBName
+        if s2.totalRuns > s1.totalRuns {
+            let wktsLeft = max(0, match.playersPerSide - 1 - s2.wickets)
+            return "\(secondName) won by \(wktsLeft) wicket\(wktsLeft == 1 ? "" : "s")"
+        }
+        if !second.isComplete { return nil }
+        if s1.totalRuns > s2.totalRuns {
+            let by = s1.totalRuns - s2.totalRuns
+            return "\(firstName) won by \(by) run\(by == 1 ? "" : "s")"
+        }
+        return "Match tied"
     }
 }
 

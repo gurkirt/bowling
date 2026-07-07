@@ -2,7 +2,8 @@
 //  MatchSetupView.swift
 //  CricReel
 //
-//  Multi-step match creation: teams, config, playing XI + batting order, toss.
+//  Match creation: teams, format (overs, players-per-side, extras), playing XI with
+//  squad validation, and toss.
 //
 
 import SwiftUI
@@ -13,18 +14,21 @@ struct MatchSetupView: View {
     @Environment(\.dismiss) private var dismiss
     @Query(sort: \Team.name) private var teams: [Team]
 
-    /// Called with the created match so the caller can navigate into it.
     var onCreated: (Match) -> Void
 
     @State private var teamA: Team?
     @State private var teamB: Team?
     @State private var venue = ""
     @State private var overs = 6
+    @State private var playersPerSide = 11
     @State private var runsPerWide = 1
+    @State private var runsPerNoBall = 1
     @State private var lineupA: [Player] = []
     @State private var lineupB: [Player] = []
     @State private var tossWinnerIsA = true
     @State private var tossDecision: TossDecision = .bat
+
+    @FocusState private var venueFocused: Bool
 
     var body: some View {
         NavigationStack {
@@ -43,31 +47,24 @@ struct MatchSetupView: View {
                             .font(.caption).foregroundStyle(.red)
                     }
                     TextField("Venue (optional)", text: $venue)
+                        .focused($venueFocused)
+                        .submitLabel(.done)
+                        .onSubmit { venueFocused = false }
                 }
 
                 Section("Format") {
                     Stepper("Overs per innings: \(overs)", value: $overs, in: 1...50)
+                    Stepper("Players per side: \(playersPerSide)", value: $playersPerSide, in: 2...11)
+                        .onChange(of: playersPerSide) { _, new in
+                            if lineupA.count > new { lineupA = Array(lineupA.prefix(new)) }
+                            if lineupB.count > new { lineupB = Array(lineupB.prefix(new)) }
+                        }
                     Stepper("Runs per wide: \(runsPerWide)", value: $runsPerWide, in: 1...5)
+                    Stepper("Runs per no-ball: \(runsPerNoBall)", value: $runsPerNoBall, in: 1...5)
                 }
 
-                if let a = teamA {
-                    Section("\(a.name) — Playing XI (batting order)") {
-                        NavigationLink {
-                            LineupPicker(team: a, lineup: $lineupA)
-                        } label: {
-                            lineupSummary(lineupA)
-                        }
-                    }
-                }
-                if let b = teamB {
-                    Section("\(b.name) — Playing XI (batting order)") {
-                        NavigationLink {
-                            LineupPicker(team: b, lineup: $lineupB)
-                        } label: {
-                            lineupSummary(lineupB)
-                        }
-                    }
-                }
+                if let a = teamA { lineupSection(team: a, lineup: $lineupA) }
+                if let b = teamB { lineupSection(team: b, lineup: $lineupB) }
 
                 Section("Toss") {
                     Picker("Won by", selection: $tossWinnerIsA) {
@@ -80,31 +77,51 @@ struct MatchSetupView: View {
                     }
                 }
             }
+            .scrollDismissesKeyboard(.interactively)
             .navigationTitle("New Match")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") { create() }.disabled(!canCreate)
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Create") { create() }.disabled(!canCreate) }
+                ToolbarItemGroup(placement: .keyboard) {
+                    Spacer()
+                    Button("Done") { venueFocused = false }
                 }
             }
         }
     }
 
-    private func lineupSummary(_ lineup: [Player]) -> some View {
-        HStack {
-            Text("Playing XI")
-            Spacer()
-            Text(lineup.isEmpty ? "None" : "\(lineup.count) selected")
-                .foregroundStyle(.secondary)
+    @ViewBuilder
+    private func lineupSection(team: Team, lineup: Binding<[Player]>) -> some View {
+        Section("\(team.name) — Playing XI (\(lineup.wrappedValue.count)/\(playersPerSide))") {
+            if team.players.count < playersPerSide {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Squad has \(team.players.count) players, need \(playersPerSide).",
+                          systemImage: "exclamationmark.triangle")
+                        .font(.caption).foregroundStyle(.orange)
+                    NavigationLink {
+                        TeamEditView(team: team)
+                    } label: {
+                        Label("Add players to \(team.name)", systemImage: "person.badge.plus")
+                    }
+                }
+            }
+            NavigationLink {
+                LineupPicker(team: team, required: playersPerSide, lineup: lineup)
+            } label: {
+                HStack {
+                    Text("Select batting order")
+                    Spacer()
+                    Text(lineup.wrappedValue.count == playersPerSide ? "Ready" : "\(lineup.wrappedValue.count)/\(playersPerSide)")
+                        .foregroundStyle(lineup.wrappedValue.count == playersPerSide ? .green : .secondary)
+                }
+            }
         }
     }
 
     private var canCreate: Bool {
         guard let a = teamA, let b = teamB, a.id != b.id else { return false }
-        return lineupA.count >= 2 && lineupB.count >= 2
+        return lineupA.count == playersPerSide && lineupB.count == playersPerSide
     }
 
     private func create() {
@@ -113,34 +130,32 @@ struct MatchSetupView: View {
             venue: venue,
             status: .live,
             oversPerInnings: overs,
+            playersPerSide: playersPerSide,
             runsPerWide: runsPerWide,
-            teamA: a,
-            teamB: b,
-            teamAName: a.name,
-            teamBName: b.name,
+            runsPerNoBall: runsPerNoBall,
+            teamA: a, teamB: b,
+            teamAName: a.name, teamBName: b.name,
             teamALineupIDs: lineupA.map(\.id),
             teamBLineupIDs: lineupB.map(\.id),
             tossWinnerIsA: tossWinnerIsA,
             tossDecision: tossDecision)
-
-        // Create the first innings based on the toss.
-        let firstInnings = Innings(order: 1, battingTeamIsA: match.battingFirstIsA)
+        let first = Innings(order: 1, battingTeamIsA: match.battingFirstIsA)
         context.insert(match)
-        firstInnings.match = match
+        first.match = match
         onCreated(match)
         dismiss()
     }
 }
 
-/// Select and order a team's playing XI. Selection order defines the batting order,
-/// and rows can be reordered with drag handles.
+/// Select and order a team's playing XI (selection order = batting order).
 struct LineupPicker: View {
     let team: Team
+    let required: Int
     @Binding var lineup: [Player]
 
     var body: some View {
         List {
-            Section("Batting order") {
+            Section("Batting order (\(lineup.count)/\(required))") {
                 if lineup.isEmpty {
                     Text("Tap players below to add them.").foregroundStyle(.secondary)
                 }
@@ -156,14 +171,15 @@ struct LineupPicker: View {
             Section("Available") {
                 ForEach(available) { player in
                     Button {
-                        lineup.append(player)
+                        if lineup.count < required { lineup.append(player) }
                     } label: {
                         HStack {
-                            Text(player.name).foregroundStyle(.primary)
+                            Text(player.name).foregroundStyle(lineup.count < required ? .primary : .secondary)
                             Spacer()
                             Image(systemName: "plus.circle").foregroundStyle(.blue)
                         }
                     }
+                    .disabled(lineup.count >= required)
                 }
             }
         }

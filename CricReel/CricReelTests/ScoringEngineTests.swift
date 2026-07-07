@@ -2,7 +2,7 @@
 //  ScoringEngineTests.swift
 //  CricReelTests
 //
-//  Unit tests for the pure scoring rules: strike rotation, wides, wickets, undo/replay.
+//  Unit tests for the scoring rules: extras, strike rotation, wickets, target, undo.
 //
 
 import XCTest
@@ -10,167 +10,206 @@ import XCTest
 
 final class ScoringEngineTests: XCTestCase {
 
-    // Four batters so we don't hit "all out" during these tests.
     let p1 = UUID(), p2 = UUID(), p3 = UUID(), p4 = UUID()
     var order: [UUID] { [p1, p2, p3, p4] }
 
-    func rules(overs: Int = 6, ballsPerOver: Int = 6, runsPerWide: Int = 1, wideLegal: Bool = false) -> InningsRules {
+    func rules(overs: Int = 6, ballsPerOver: Int = 6, runsPerWide: Int = 1,
+               runsPerNoBall: Int = 1, lineup: Int = 4, target: Int? = nil) -> InningsRules {
         InningsRules(oversLimit: overs, ballsPerOver: ballsPerOver,
-                     runsPerWide: runsPerWide, wideIsLegalBall: wideLegal, lineupSize: 4)
+                     runsPerWide: runsPerWide, runsPerNoBall: runsPerNoBall,
+                     wideIsLegalBall: false, noBallIsLegalBall: false,
+                     lineupSize: lineup, target: target)
     }
 
-    /// Helper to append a delivery to a mutable list, using the current derived state
-    /// for striker/non-striker/over/ball — mirrors how the live UI builds deliveries.
-    private func appended(_ list: [DeliveryData], _ input: BallInput, rules r: InningsRules) -> [DeliveryData] {
+    /// Append a normal (non-wicket) delivery using the current derived state.
+    private func ball(_ list: [DeliveryData], extra: ExtraType = .none, runs: Int = 0,
+                      rules r: InningsRules) -> [DeliveryData] {
         var list = list
-        let state = ScoringEngine.computeState(battingOrder: order, deliveries: list, rules: r)
-        let extra = ScoringEngine.resolveExtra(input.extraType, rules: r)
-        let d = DeliveryData(
+        let s = ScoringEngine.computeState(battingOrder: order, deliveries: list, rules: r)
+        let res = ScoringEngine.resolve(extra: extra, padRuns: runs, rules: r)
+        list.append(DeliveryData(
             sequence: list.count,
-            strikerID: state.strikerID ?? order[0],
-            nonStrikerID: state.nonStrikerID ?? order[1],
-            bowlerID: UUID(),
-            runsOffBat: input.runsOffBat,
-            extraType: input.extraType,
-            extraRuns: extra.extraRuns,
-            isWicket: input.isWicket,
-            dismissalType: input.dismissalType,
-            dismissedPlayerID: input.dismissedPlayerID,
-            isLegalDelivery: extra.isLegal)
-        list.append(d)
+            strikerID: s.strikerID ?? p1, nonStrikerID: s.nonStrikerID ?? p2, bowlerID: UUID(),
+            runsOffBat: res.runsOffBat, extraType: extra, extraRuns: res.extraRuns,
+            physicalRuns: res.physicalRuns, isLegalDelivery: res.isLegal, isWicket: false,
+            strikerAfterID: nil, nonStrikerAfterID: nil, newBatterID: nil))
         return list
+    }
+
+    /// Append a wicket with explicit post-state (as the WicketSheet would produce).
+    private func wicket(_ list: [DeliveryData], newBatter: UUID?, strikerAfter: UUID?,
+                        nonStrikerAfter: UUID?, rules r: InningsRules) -> [DeliveryData] {
+        var list = list
+        let s = ScoringEngine.computeState(battingOrder: order, deliveries: list, rules: r)
+        list.append(DeliveryData(
+            sequence: list.count,
+            strikerID: s.strikerID ?? p1, nonStrikerID: s.nonStrikerID ?? p2, bowlerID: UUID(),
+            runsOffBat: 0, extraType: .none, extraRuns: 0, physicalRuns: 0,
+            isLegalDelivery: true, isWicket: true,
+            strikerAfterID: strikerAfter, nonStrikerAfterID: nonStrikerAfter, newBatterID: newBatter))
+        return list
+    }
+
+    private func state(_ list: [DeliveryData], _ r: InningsRules) -> InningsState {
+        ScoringEngine.computeState(battingOrder: order, deliveries: list, rules: r)
     }
 
     // MARK: - Strike rotation
 
     func testOddRunsRotateStrike() {
         let r = rules()
-        var d: [DeliveryData] = []
-        d = appended(d, BallInput(runsOffBat: 1), rules: r)
-        let s = ScoringEngine.computeState(battingOrder: order, deliveries: d, rules: r)
-        XCTAssertEqual(s.strikerID, p2, "1 run should put p2 on strike")
-        XCTAssertEqual(s.nonStrikerID, p1)
+        let s = state(ball([], runs: 1, rules: r), r)
+        XCTAssertEqual(s.strikerID, p2)
         XCTAssertEqual(s.totalRuns, 1)
         XCTAssertEqual(s.legalBalls, 1)
     }
 
     func testEvenRunsKeepStrike() {
         let r = rules()
-        var d: [DeliveryData] = []
-        d = appended(d, BallInput(runsOffBat: 2), rules: r)
-        let s = ScoringEngine.computeState(battingOrder: order, deliveries: d, rules: r)
-        XCTAssertEqual(s.strikerID, p1, "2 runs should keep p1 on strike")
+        let s = state(ball([], runs: 2, rules: r), r)
+        XCTAssertEqual(s.strikerID, p1)
         XCTAssertEqual(s.totalRuns, 2)
     }
 
     func testEndOfOverSwapsStrike() {
         let r = rules(ballsPerOver: 6)
         var d: [DeliveryData] = []
-        // 6 dot balls → over complete → strike swaps.
-        for _ in 0..<6 { d = appended(d, BallInput(runsOffBat: 0), rules: r) }
-        let s = ScoringEngine.computeState(battingOrder: order, deliveries: d, rules: r)
+        for _ in 0..<6 { d = ball(d, runs: 0, rules: r) }
+        let s = state(d, r)
         XCTAssertEqual(s.oversCompleted, 1)
         XCTAssertEqual(s.ballsThisOver, 0)
-        XCTAssertEqual(s.strikerID, p2, "end of over should rotate strike")
+        XCTAssertEqual(s.strikerID, p2, "dot ball to end the over rotates strike")
         XCTAssertTrue(s.justCompletedOver)
     }
 
-    func testSingleOnLastBallNetKeepsStrikeForRunner() {
+    func testSingleOffLastBallRetainsStrike() {
         let r = rules(ballsPerOver: 6)
         var d: [DeliveryData] = []
-        for _ in 0..<5 { d = appended(d, BallInput(runsOffBat: 0), rules: r) }
-        // 6th ball: 1 run (swap) then over-end (swap) → net same batter keeps strike.
-        d = appended(d, BallInput(runsOffBat: 1), rules: r)
-        let s = ScoringEngine.computeState(battingOrder: order, deliveries: d, rules: r)
+        for _ in 0..<5 { d = ball(d, runs: 0, rules: r) }
+        d = ball(d, runs: 1, rules: r)  // single (swap) then over-end (swap) = net same
+        let s = state(d, r)
         XCTAssertEqual(s.oversCompleted, 1)
-        XCTAssertEqual(s.strikerID, p1, "runner off the last ball retains strike next over")
+        XCTAssertEqual(s.strikerID, p1)
     }
 
-    // MARK: - Wides
+    // MARK: - Extras
 
     func testWideAddsRunsAndDoesNotAdvanceOver() {
         let r = rules(runsPerWide: 1)
-        var d: [DeliveryData] = []
-        d = appended(d, BallInput(extraType: .wide), rules: r)
-        let s = ScoringEngine.computeState(battingOrder: order, deliveries: d, rules: r)
+        let s = state(ball([], extra: .wide, runs: 0, rules: r), r)
         XCTAssertEqual(s.totalRuns, 1)
-        XCTAssertEqual(s.legalBalls, 0, "a wide is not a legal ball")
-        XCTAssertEqual(s.ballsThisOver, 0)
-        XCTAssertEqual(s.strikerID, p1, "a wide does not rotate strike")
+        XCTAssertEqual(s.legalBalls, 0)
+        XCTAssertEqual(s.strikerID, p1)
     }
 
-    func testWideRunsPerWideConfigurable() {
-        let r = rules(runsPerWide: 5)
-        var d: [DeliveryData] = []
-        d = appended(d, BallInput(extraType: .wide), rules: r)
-        let s = ScoringEngine.computeState(battingOrder: order, deliveries: d, rules: r)
+    func testWidePlusRunsRotatesStrike() {
+        let r = rules(runsPerWide: 1)
+        let s = state(ball([], extra: .wide, runs: 1, rules: r), r)  // 1 wide + 1 bye run
+        XCTAssertEqual(s.totalRuns, 2)
+        XCTAssertEqual(s.legalBalls, 0)
+        XCTAssertEqual(s.strikerID, p2)
+    }
+
+    func testNoBallOffBat() {
+        let r = rules(runsPerNoBall: 1)
+        let res = ScoringEngine.resolve(extra: .noBall, padRuns: 4, rules: r)
+        XCTAssertEqual(res.runsOffBat, 4)
+        XCTAssertEqual(res.extraRuns, 1)
+        XCTAssertEqual(res.bowlerChargedRuns, 5)
+        XCTAssertFalse(res.isLegal)
+        XCTAssertTrue(res.faced)
+        let s = state(ball([], extra: .noBall, runs: 4, rules: r), r)
         XCTAssertEqual(s.totalRuns, 5)
         XCTAssertEqual(s.legalBalls, 0)
     }
 
-    func testOverNeedsSixLegalBallsWithWides() {
-        let r = rules(ballsPerOver: 6, runsPerWide: 1)
-        var d: [DeliveryData] = []
-        d = appended(d, BallInput(extraType: .wide), rules: r)   // not legal
-        for _ in 0..<6 { d = appended(d, BallInput(runsOffBat: 0), rules: r) } // 6 legal
-        let s = ScoringEngine.computeState(battingOrder: order, deliveries: d, rules: r)
+    func testByeIsLegalNotChargedToBowler() {
+        let r = rules()
+        let res = ScoringEngine.resolve(extra: .bye, padRuns: 2, rules: r)
+        XCTAssertEqual(res.extraRuns, 2)
+        XCTAssertEqual(res.bowlerChargedRuns, 0)
+        XCTAssertTrue(res.isLegal)
+        let s = state(ball([], extra: .bye, runs: 2, rules: r), r)
+        XCTAssertEqual(s.totalRuns, 2)
+        XCTAssertEqual(s.legalBalls, 1)
+        XCTAssertEqual(s.strikerID, p1)
+    }
+
+    func testOverNeedsSixLegalBallsWithExtras() {
+        let r = rules(ballsPerOver: 6)
+        var d = ball([], extra: .wide, runs: 0, rules: r)
+        d = ball(d, extra: .noBall, runs: 0, rules: r)
+        for _ in 0..<6 { d = ball(d, runs: 0, rules: r) }
+        let s = state(d, r)
         XCTAssertEqual(s.oversCompleted, 1)
         XCTAssertEqual(s.legalBalls, 6)
-        XCTAssertEqual(s.totalRuns, 1)
+        XCTAssertEqual(s.totalRuns, 2)
     }
 
     // MARK: - Wickets
 
-    func testWicketBringsInNextBatterOnStrike() {
+    func testWicketOverridePlacesNewBatter() {
         let r = rules()
-        var d: [DeliveryData] = []
-        d = appended(d, BallInput(isWicket: true, dismissalType: .bowled), rules: r)
-        let s = ScoringEngine.computeState(battingOrder: order, deliveries: d, rules: r)
+        let d = wicket([], newBatter: p3, strikerAfter: p3, nonStrikerAfter: p2, rules: r)
+        let s = state(d, r)
         XCTAssertEqual(s.wickets, 1)
-        XCTAssertEqual(s.strikerID, p3, "next batter (p3) comes in on strike")
+        XCTAssertEqual(s.strikerID, p3)
         XCTAssertEqual(s.nonStrikerID, p2)
         XCTAssertFalse(s.isInningsComplete)
     }
 
     func testAllOutCompletesInnings() {
-        let r = rules()  // lineupSize 4 → all out at 3 wickets
-        var d: [DeliveryData] = []
-        for _ in 0..<3 { d = appended(d, BallInput(isWicket: true, dismissalType: .bowled), rules: r) }
-        let s = ScoringEngine.computeState(battingOrder: order, deliveries: d, rules: r)
+        let r = rules(lineup: 4)
+        var d = wicket([], newBatter: p3, strikerAfter: p3, nonStrikerAfter: p2, rules: r)
+        d = wicket(d, newBatter: p4, strikerAfter: p4, nonStrikerAfter: p2, rules: r)
+        d = wicket(d, newBatter: nil, strikerAfter: nil, nonStrikerAfter: nil, rules: r)
+        let s = state(d, r)
         XCTAssertEqual(s.wickets, 3)
         XCTAssertTrue(s.isAllOut)
         XCTAssertTrue(s.isInningsComplete)
     }
 
-    // MARK: - Overs limit
+    func testAppearedBatters() {
+        let r = rules()
+        let d = wicket([], newBatter: p3, strikerAfter: p3, nonStrikerAfter: p2, rules: r)
+        let appeared = ScoringEngine.appearedBatters(battingOrder: order, deliveries: d)
+        XCTAssertEqual(appeared, Set([p1, p2, p3]))
+    }
+
+    // MARK: - Overs limit & target
 
     func testOversLimitCompletesInnings() {
         let r = rules(overs: 1, ballsPerOver: 6)
         var d: [DeliveryData] = []
-        for _ in 0..<6 { d = appended(d, BallInput(runsOffBat: 0), rules: r) }
-        let s = ScoringEngine.computeState(battingOrder: order, deliveries: d, rules: r)
-        XCTAssertEqual(s.oversCompleted, 1)
+        for _ in 0..<6 { d = ball(d, runs: 0, rules: r) }
+        XCTAssertTrue(state(d, r).isInningsComplete)
+    }
+
+    func testTargetReachedCompletesInnings() {
+        let r = rules(overs: 6, target: 5)
+        var d = ball([], runs: 4, rules: r)
+        XCTAssertFalse(state(d, r).isInningsComplete)
+        d = ball(d, runs: 1, rules: r) // total 5 == target
+        let s = state(d, r)
+        XCTAssertTrue(s.targetReached)
         XCTAssertTrue(s.isInningsComplete)
     }
 
-    // MARK: - Undo / replay consistency
+    // MARK: - Undo & highlights
 
-    func testUndoIsJustDroppingLastDelivery() {
+    func testUndoIsDroppingLastDelivery() {
         let r = rules()
-        var d: [DeliveryData] = []
-        d = appended(d, BallInput(runsOffBat: 4), rules: r)
-        d = appended(d, BallInput(runsOffBat: 1), rules: r)
-        let before = ScoringEngine.computeState(battingOrder: order, deliveries: Array(d.dropLast()), rules: r)
+        var d = ball([], runs: 4, rules: r)
+        d = ball(d, runs: 1, rules: r)
+        let before = state(Array(d.dropLast()), r)
         XCTAssertEqual(before.totalRuns, 4)
         XCTAssertEqual(before.strikerID, p1)
     }
 
-    // MARK: - Commentary & highlights
-
     func testHighlightTags() {
-        XCTAssertEqual(ScoringEngine.highlightTags(for: BallInput(runsOffBat: 4)), [.four])
-        XCTAssertEqual(ScoringEngine.highlightTags(for: BallInput(runsOffBat: 6)), [.six])
-        XCTAssertEqual(ScoringEngine.highlightTags(for: BallInput(isWicket: true, dismissalType: .bowled)), [.wicket])
-        XCTAssertTrue(ScoringEngine.highlightTags(for: BallInput(runsOffBat: 2)).isEmpty)
+        XCTAssertEqual(ScoringEngine.highlightTags(for: BallInput(extra: .none, padRuns: 4)), [.four])
+        XCTAssertEqual(ScoringEngine.highlightTags(for: BallInput(extra: .none, padRuns: 6)), [.six])
+        XCTAssertEqual(ScoringEngine.highlightTags(for: BallInput(isWicket: true, dismissal: .bowled)), [.wicket])
+        XCTAssertTrue(ScoringEngine.highlightTags(for: BallInput(extra: .none, padRuns: 2)).isEmpty)
     }
 }

@@ -24,12 +24,16 @@
 		BFIL015 /* MatchSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF015 /* MatchSetupView.swift */; };
 		BFIL016 /* MatchListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF016 /* MatchListView.swift */; };
 		BFIL017 /* ScoringView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF017 /* ScoringView.swift */; };
-		BFIL018 /* BallConfirmSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF018 /* BallConfirmSheet.swift */; };
+		BFIL018 /* WicketSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF018 /* WicketSheet.swift */; };
 		BFIL019 /* CommentaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF019 /* CommentaryView.swift */; };
 		BFIL020 /* ScorecardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF020 /* ScorecardView.swift */; };
 		BFIL021 /* PlayerStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF021 /* PlayerStatsView.swift */; };
 		BFIL022 /* HighlightBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF022 /* HighlightBuilder.swift */; };
 		BFIL023 /* HighlightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF023 /* HighlightsView.swift */; };
+		BFIL024 /* ScoringPad.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF024 /* ScoringPad.swift */; };
+		BFIL025 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF025 /* SettingsView.swift */; };
+		BFIL026 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF026 /* SettingsStore.swift */; };
+		BFIL027 /* MiniScoreboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF027 /* MiniScoreboard.swift */; };
 		BFIL050 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FREF050 /* Assets.xcassets */; };
 		BFIL051 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FREF051 /* Preview Assets.xcassets */; };
 		BFIL052 /* fastvit_sa12_exp21.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = FREF052 /* fastvit_sa12_exp21.mlpackage */; };
@@ -66,12 +70,16 @@
 		FREF015 /* MatchSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchSetupView.swift; sourceTree = "<group>"; };
 		FREF016 /* MatchListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchListView.swift; sourceTree = "<group>"; };
 		FREF017 /* ScoringView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringView.swift; sourceTree = "<group>"; };
-		FREF018 /* BallConfirmSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BallConfirmSheet.swift; sourceTree = "<group>"; };
+		FREF018 /* WicketSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WicketSheet.swift; sourceTree = "<group>"; };
 		FREF019 /* CommentaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentaryView.swift; sourceTree = "<group>"; };
 		FREF020 /* ScorecardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorecardView.swift; sourceTree = "<group>"; };
 		FREF021 /* PlayerStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerStatsView.swift; sourceTree = "<group>"; };
 		FREF022 /* HighlightBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightBuilder.swift; sourceTree = "<group>"; };
 		FREF023 /* HighlightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightsView.swift; sourceTree = "<group>"; };
+		FREF024 /* ScoringPad.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringPad.swift; sourceTree = "<group>"; };
+		FREF025 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		FREF026 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
+		FREF027 /* MiniScoreboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniScoreboard.swift; sourceTree = "<group>"; };
 		FREF050 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FREF051 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		FREF052 /* fastvit_sa12_exp21.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = fastvit_sa12_exp21.mlpackage; sourceTree = "<group>"; };
@@ -134,12 +142,16 @@
 				FREF015 /* MatchSetupView.swift */,
 				FREF016 /* MatchListView.swift */,
 				FREF017 /* ScoringView.swift */,
-				FREF018 /* BallConfirmSheet.swift */,
+				FREF018 /* WicketSheet.swift */,
 				FREF019 /* CommentaryView.swift */,
 				FREF020 /* ScorecardView.swift */,
 				FREF021 /* PlayerStatsView.swift */,
 				FREF022 /* HighlightBuilder.swift */,
 				FREF023 /* HighlightsView.swift */,
+				FREF024 /* ScoringPad.swift */,
+				FREF025 /* SettingsView.swift */,
+				FREF026 /* SettingsStore.swift */,
+				FREF027 /* MiniScoreboard.swift */,
 				FREF052 /* fastvit_sa12_exp21.mlpackage */,
 				FREF050 /* Assets.xcassets */,
 				GRP0000004 /* Preview Content */,
@@ -281,12 +293,16 @@
 				BFIL015 /* MatchSetupView.swift in Sources */,
 				BFIL016 /* MatchListView.swift in Sources */,
 				BFIL017 /* ScoringView.swift in Sources */,
-				BFIL018 /* BallConfirmSheet.swift in Sources */,
+				BFIL018 /* WicketSheet.swift in Sources */,
 				BFIL019 /* CommentaryView.swift in Sources */,
 				BFIL020 /* ScorecardView.swift in Sources */,
 				BFIL021 /* PlayerStatsView.swift in Sources */,
 				BFIL022 /* HighlightBuilder.swift in Sources */,
 				BFIL023 /* HighlightsView.swift in Sources */,
+				BFIL024 /* ScoringPad.swift in Sources */,
+				BFIL025 /* SettingsView.swift in Sources */,
+				BFIL026 /* SettingsStore.swift in Sources */,
+				BFIL027 /* MiniScoreboard.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

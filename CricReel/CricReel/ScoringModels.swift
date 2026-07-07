@@ -3,8 +3,7 @@
 //  CricReel
 //
 //  SwiftData model layer for local cricket scoring.
-//  v1 scope: runs 0–6, wickets, and wides. Extras/dismissals enums are kept
-//  extensible so byes/no-balls can be added later without a migration rewrite.
+//  Supports runs 0–6, wickets, and extras (wide, no-ball, bye, leg-bye).
 //
 
 import Foundation
@@ -23,20 +22,38 @@ enum TossDecision: String, Codable, CaseIterable {
     case bowl
 }
 
-/// Delivery extra type. v1 supports `.none` and `.wide`; more can be added later.
-enum ExtraType: String, Codable, CaseIterable {
+/// Delivery extra type.
+enum ExtraType: String, Codable, CaseIterable, Identifiable {
     case none
     case wide
+    case noBall
+    case bye
+    case legBye
+
+    var id: String { rawValue }
+
+    var shortLabel: String {
+        switch self {
+        case .none:   return ""
+        case .wide:   return "WD"
+        case .noBall: return "NB"
+        case .bye:    return "B"
+        case .legBye: return "LB"
+        }
+    }
 
     var displayName: String {
         switch self {
-        case .none: return "—"
-        case .wide: return "Wide"
+        case .none:   return "—"
+        case .wide:   return "Wide"
+        case .noBall: return "No Ball"
+        case .bye:    return "Bye"
+        case .legBye: return "Leg Bye"
         }
     }
 }
 
-enum DismissalType: String, Codable, CaseIterable {
+enum DismissalType: String, Codable, CaseIterable, Identifiable {
     case bowled
     case caught
     case lbw
@@ -44,6 +61,8 @@ enum DismissalType: String, Codable, CaseIterable {
     case stumped
     case hitWicket
     case other
+
+    var id: String { rawValue }
 
     var displayName: String {
         switch self {
@@ -63,6 +82,11 @@ enum DismissalType: String, Codable, CaseIterable {
         case .bowled, .caught, .lbw, .stumped, .hitWicket: return true
         case .runOut, .other: return false
         }
+    }
+
+    /// Whether a fielder is involved (for commentary/stats).
+    var involvesFielder: Bool {
+        self == .caught || self == .runOut || self == .stumped
     }
 }
 
@@ -111,7 +135,6 @@ final class Team {
     @Attribute(.unique) var id: UUID
     var name: String
     var createdAt: Date
-    /// Squad pool. Order is not significant here; batting order lives on the Match.
     @Relationship var players: [Player]
 
     init(id: UUID = UUID(),
@@ -137,18 +160,19 @@ final class Match {
     // Config
     var oversPerInnings: Int
     var ballsPerOver: Int
+    var playersPerSide: Int
     var runsPerWide: Int
-    /// Whether a wide counts as a legal delivery (advances the over). Standard cricket: false.
+    var runsPerNoBall: Int
     var wideIsLegalBall: Bool
+    var noBallIsLegalBall: Bool
 
-    // Teams (references + name snapshots so a scorecard survives team edits)
+    // Teams
     @Relationship var teamA: Team?
     @Relationship var teamB: Team?
     var teamAName: String
     var teamBName: String
 
-    /// Playing XI as ordered player IDs (index = batting order). Kept as ID arrays
-    /// because SwiftData to-many relationships are unordered.
+    /// Playing XI as ordered player IDs (index = batting order).
     var teamALineupIDs: [UUID]
     var teamBLineupIDs: [UUID]
 
@@ -164,8 +188,11 @@ final class Match {
          status: MatchStatus = .setup,
          oversPerInnings: Int = 6,
          ballsPerOver: Int = 6,
+         playersPerSide: Int = 11,
          runsPerWide: Int = 1,
+         runsPerNoBall: Int = 1,
          wideIsLegalBall: Bool = false,
+         noBallIsLegalBall: Bool = false,
          teamA: Team? = nil,
          teamB: Team? = nil,
          teamAName: String = "",
@@ -181,8 +208,11 @@ final class Match {
         self.status = status
         self.oversPerInnings = oversPerInnings
         self.ballsPerOver = ballsPerOver
+        self.playersPerSide = playersPerSide
         self.runsPerWide = runsPerWide
+        self.runsPerNoBall = runsPerNoBall
         self.wideIsLegalBall = wideIsLegalBall
+        self.noBallIsLegalBall = noBallIsLegalBall
         self.teamA = teamA
         self.teamB = teamB
         self.teamAName = teamAName
@@ -194,9 +224,7 @@ final class Match {
         self.innings = innings
     }
 
-    /// Which team bats first, derived from toss winner + decision.
     var battingFirstIsA: Bool {
-        // Winner bats if they chose bat; otherwise the other team bats.
         tossWinnerIsA ? (tossDecision == .bat) : (tossDecision == .bowl)
     }
 
@@ -233,7 +261,6 @@ final class Innings {
         self.deliveries = deliveries
     }
 
-    /// Deliveries in scoring order.
     var orderedDeliveries: [Delivery] {
         deliveries.sorted { $0.sequence < $1.sequence }
     }
@@ -245,28 +272,39 @@ final class Innings {
 final class Delivery {
     @Attribute(.unique) var id: UUID
     var timestamp: Date
-    /// Global order within the innings (monotonically increasing).
     var sequence: Int
-    /// 0-based over index.
     var overNumber: Int
-    /// 1-based legal-ball number within the over (for legal balls); for a wide this is
-    /// the number the next legal ball will take.
     var ballInOver: Int
 
+    // Who was on the field for this ball.
     var strikerID: UUID
     var nonStrikerID: UUID
     var bowlerID: UUID
 
+    // Runs
     var runsOffBat: Int
     var extraType: ExtraType
     var extraRuns: Int
+    /// Number of runs physically completed by the batters (drives strike rotation).
+    var physicalRuns: Int
+    /// Runs charged to the bowler (off bat + wide/no-ball penalties + off-noball runs; excludes byes/leg-byes).
+    var bowlerChargedRuns: Int
 
+    // Ball accounting
+    var isLegalDelivery: Bool     // advances the over
+    var facedByBatsman: Bool      // counts toward striker's balls faced
+
+    // Wicket
     var isWicket: Bool
     var dismissalType: DismissalType?
     var dismissedPlayerID: UUID?
+    var fielderID: UUID?
+    var newBatterID: UUID?
 
-    /// Whether this delivery advances the over count (false for a wide by default).
-    var isLegalDelivery: Bool
+    /// Explicit post-delivery batters (set for wickets and manual strike corrections).
+    /// When present, the engine uses these instead of computing rotation.
+    var strikerAfterID: UUID?
+    var nonStrikerAfterID: UUID?
 
     var clipFilename: String?
     var commentary: String
@@ -285,10 +323,17 @@ final class Delivery {
          runsOffBat: Int = 0,
          extraType: ExtraType = .none,
          extraRuns: Int = 0,
+         physicalRuns: Int = 0,
+         bowlerChargedRuns: Int = 0,
+         isLegalDelivery: Bool = true,
+         facedByBatsman: Bool = true,
          isWicket: Bool = false,
          dismissalType: DismissalType? = nil,
          dismissedPlayerID: UUID? = nil,
-         isLegalDelivery: Bool = true,
+         fielderID: UUID? = nil,
+         newBatterID: UUID? = nil,
+         strikerAfterID: UUID? = nil,
+         nonStrikerAfterID: UUID? = nil,
          clipFilename: String? = nil,
          commentary: String = "",
          highlightTags: [HighlightTag] = []) {
@@ -303,15 +348,21 @@ final class Delivery {
         self.runsOffBat = runsOffBat
         self.extraType = extraType
         self.extraRuns = extraRuns
+        self.physicalRuns = physicalRuns
+        self.bowlerChargedRuns = bowlerChargedRuns
+        self.isLegalDelivery = isLegalDelivery
+        self.facedByBatsman = facedByBatsman
         self.isWicket = isWicket
         self.dismissalType = dismissalType
         self.dismissedPlayerID = dismissedPlayerID
-        self.isLegalDelivery = isLegalDelivery
+        self.fielderID = fielderID
+        self.newBatterID = newBatterID
+        self.strikerAfterID = strikerAfterID
+        self.nonStrikerAfterID = nonStrikerAfterID
         self.clipFilename = clipFilename
         self.commentary = commentary
         self.highlightTags = highlightTags
     }
 
-    /// Total runs credited on this delivery (bat + extras).
     var totalRuns: Int { runsOffBat + extraRuns }
 }
