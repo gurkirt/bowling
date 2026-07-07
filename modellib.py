@@ -44,11 +44,23 @@ class Model:
 def _load_model(model_path: pathlib.Path, device: Device) -> Tuple[Any, int , int]:
     """Load trained model from checkpoint"""    
     checkpoint = torch.load(str(model_path), map_location=device, weights_only=False)
-    model = timm.create_model(checkpoint['args'].model_name, pretrained=False, num_classes=checkpoint['args'].num_classes)
+    if 'config' in checkpoint:
+        cfg = checkpoint['config']
+        model_name = cfg['model_name']
+        num_classes = cfg['num_classes']
+        h, w = cfg['input_height'], cfg['input_width']
+    elif 'args' in checkpoint:
+        args = checkpoint['args']
+        model_name = args.model_name
+        num_classes = args.num_classes
+        h, w = args.input_height, args.input_width
+    else:
+        raise ValueError("Unrecognised checkpoint (no 'config' or 'args' key).")
+    model = timm.create_model(model_name, pretrained=False, num_classes=num_classes)
     model.load_state_dict(checkpoint['model_state_dict'])
     model = model.to(torch.device(device.value))
     model.eval()
-    return model, checkpoint['args'].input_height, checkpoint['args'].input_width 
+    return model, h, w
 
 
 def _get_transforms(input_height=320, input_width=128) -> transforms.Compose:

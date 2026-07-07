@@ -15,6 +15,7 @@
 		6975ADA02EA9697900BD8D0E /* CriClipsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6975AD9F2EA9697900BD8D0E /* CriClipsUITests.swift */; };
 		6975ADA22EA9697900BD8D0E /* CriClipsUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6975ADA12EA9697900BD8D0E /* CriClipsUITestsLaunchTests.swift */; };
 		6975ADB02EAA6ADC00BD8D0E /* best_model.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 6975ADAF2EAA6ADA00BD8D0E /* best_model.mlpackage */; };
+		FASTVIT001 /* fastvit_sa12_exp21.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = FASTVIT000 /* fastvit_sa12_exp21.mlpackage */; };
 		CAMERA001 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAMERA000 /* CameraManager.swift */; };
 		FRAME001 /* FrameBufferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRAME000 /* FrameBufferManager.swift */; };
 		MODEL001 /* ModelProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODEL000 /* ModelProcessor.swift */; };
@@ -52,6 +53,7 @@
 		6975AD9F2EA9697900BD8D0E /* CriClipsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CriClipsUITests.swift; sourceTree = "<group>"; };
 		6975ADA12EA9697900BD8D0E /* CriClipsUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CriClipsUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		6975ADAF2EAA6ADA00BD8D0E /* best_model.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = best_model.mlpackage; sourceTree = "<group>"; };
+		FASTVIT000 /* fastvit_sa12_exp21.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = fastvit_sa12_exp21.mlpackage; sourceTree = "<group>"; };
 		CAMERA000 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		FRAME000 /* FrameBufferManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameBufferManager.swift; sourceTree = "<group>"; };
 		INFO000 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
@@ -111,6 +113,7 @@
 				6975AD832EA9697600BD8D0E /* CriClipsApp.swift */,
 				6975AD852EA9697600BD8D0E /* ContentView.swift */,
 				6975ADAF2EAA6ADA00BD8D0E /* best_model.mlpackage */,
+				FASTVIT000 /* fastvit_sa12_exp21.mlpackage */,
 				CAMERA000 /* CameraManager.swift */,
 				MODEL000 /* ModelProcessor.swift */,
 				FRAME000 /* FrameBufferManager.swift */,
@@ -256,6 +259,7 @@
 				6975AD8C2EA9697800BD8D0E /* Preview Assets.xcassets in Resources */,
 				6975AD882EA9697800BD8D0E /* Assets.xcassets in Resources */,
 				6975ADB02EAA6ADC00BD8D0E /* best_model.mlpackage in Resources */,
+				FASTVIT001 /* fastvit_sa12_exp21.mlpackage in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

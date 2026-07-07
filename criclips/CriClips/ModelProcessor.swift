@@ -71,16 +71,16 @@ class ModelProcessor: ObservableObject {
         loadQueue.async { [weak self] in
             guard let self else { return }
             for bundle in [Bundle.main, Bundle(for: ModelProcessor.self)] {
-                if let url = bundle.url(forResource: "best_model", withExtension: "mlpackage") {
+                if let url = bundle.url(forResource: "fastvit_sa12_exp21", withExtension: "mlpackage") {
                     self.tryLoad(url: url)
                     return
                 }
-                if let url = bundle.url(forResource: "best_model", withExtension: "mlmodelc") {
+                if let url = bundle.url(forResource: "fastvit_sa12_exp21", withExtension: "mlmodelc") {
                     self.tryLoad(url: url)
                     return
                 }
             }
-            print("❌ [CriClips] best_model.mlpackage not found in bundle")
+            print("❌ [CriClips] fastvit_sa12_exp21.mlpackage not found in bundle")
         }
     }
 
