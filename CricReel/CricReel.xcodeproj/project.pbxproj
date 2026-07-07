@@ -1,0 +1,539 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		BFIL001 /* CricReelApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF001 /* CricReelApp.swift */; };
+		BFIL002 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF002 /* AppRootView.swift */; };
+		BFIL003 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF003 /* CameraManager.swift */; };
+		BFIL004 /* ModelProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF004 /* ModelProcessor.swift */; };
+		BFIL005 /* VideoWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF005 /* VideoWriter.swift */; };
+		BFIL006 /* RecordingConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF006 /* RecordingConfiguration.swift */; };
+		BFIL007 /* ScoringModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF007 /* ScoringModels.swift */; };
+		BFIL008 /* ScoringEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF008 /* ScoringEngine.swift */; };
+		BFIL009 /* Stats.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF009 /* Stats.swift */; };
+		BFIL010 /* Support.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF010 /* Support.swift */; };
+		BFIL011 /* MatchScoring.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF011 /* MatchScoring.swift */; };
+		BFIL012 /* CameraPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF012 /* CameraPreview.swift */; };
+		BFIL013 /* PlayerPoolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF013 /* PlayerPoolView.swift */; };
+		BFIL014 /* TeamSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF014 /* TeamSetupView.swift */; };
+		BFIL015 /* MatchSetupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF015 /* MatchSetupView.swift */; };
+		BFIL016 /* MatchListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF016 /* MatchListView.swift */; };
+		BFIL017 /* ScoringView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF017 /* ScoringView.swift */; };
+		BFIL018 /* BallConfirmSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF018 /* BallConfirmSheet.swift */; };
+		BFIL019 /* CommentaryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF019 /* CommentaryView.swift */; };
+		BFIL020 /* ScorecardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF020 /* ScorecardView.swift */; };
+		BFIL021 /* PlayerStatsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF021 /* PlayerStatsView.swift */; };
+		BFIL022 /* HighlightBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF022 /* HighlightBuilder.swift */; };
+		BFIL023 /* HighlightsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF023 /* HighlightsView.swift */; };
+		BFIL050 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FREF050 /* Assets.xcassets */; };
+		BFIL051 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FREF051 /* Preview Assets.xcassets */; };
+		BFIL052 /* fastvit_sa12_exp21.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = FREF052 /* fastvit_sa12_exp21.mlpackage */; };
+		BFIL060 /* ScoringEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF060 /* ScoringEngineTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		PXY0000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = PRJ0000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = TGT0000001;
+			remoteInfo = "CricReel";
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		PROD000001 /* CricReel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CricReel.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		PROD000002 /* CricReelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CricReelTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		FREF001 /* CricReelApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CricReelApp.swift; sourceTree = "<group>"; };
+		FREF002 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		FREF003 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
+		FREF004 /* ModelProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProcessor.swift; sourceTree = "<group>"; };
+		FREF005 /* VideoWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWriter.swift; sourceTree = "<group>"; };
+		FREF006 /* RecordingConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingConfiguration.swift; sourceTree = "<group>"; };
+		FREF007 /* ScoringModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringModels.swift; sourceTree = "<group>"; };
+		FREF008 /* ScoringEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngine.swift; sourceTree = "<group>"; };
+		FREF009 /* Stats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Stats.swift; sourceTree = "<group>"; };
+		FREF010 /* Support.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support.swift; sourceTree = "<group>"; };
+		FREF011 /* MatchScoring.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchScoring.swift; sourceTree = "<group>"; };
+		FREF012 /* CameraPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreview.swift; sourceTree = "<group>"; };
+		FREF013 /* PlayerPoolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerPoolView.swift; sourceTree = "<group>"; };
+		FREF014 /* TeamSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamSetupView.swift; sourceTree = "<group>"; };
+		FREF015 /* MatchSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchSetupView.swift; sourceTree = "<group>"; };
+		FREF016 /* MatchListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MatchListView.swift; sourceTree = "<group>"; };
+		FREF017 /* ScoringView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringView.swift; sourceTree = "<group>"; };
+		FREF018 /* BallConfirmSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BallConfirmSheet.swift; sourceTree = "<group>"; };
+		FREF019 /* CommentaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentaryView.swift; sourceTree = "<group>"; };
+		FREF020 /* ScorecardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScorecardView.swift; sourceTree = "<group>"; };
+		FREF021 /* PlayerStatsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlayerStatsView.swift; sourceTree = "<group>"; };
+		FREF022 /* HighlightBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightBuilder.swift; sourceTree = "<group>"; };
+		FREF023 /* HighlightsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HighlightsView.swift; sourceTree = "<group>"; };
+		FREF050 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		FREF051 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
+		FREF052 /* fastvit_sa12_exp21.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = fastvit_sa12_exp21.mlpackage; sourceTree = "<group>"; };
+		FREF060 /* ScoringEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngineTests.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		PHS0000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		PHS0000005 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		GRP0000001 = {
+			isa = PBXGroup;
+			children = (
+				GRP0000003 /* CricReel */,
+				GRP0000005 /* CricReelTests */,
+				GRP0000002 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		GRP0000002 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				PROD000001 /* CricReel.app */,
+				PROD000002 /* CricReelTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		GRP0000003 /* CricReel */ = {
+			isa = PBXGroup;
+			children = (
+				FREF001 /* CricReelApp.swift */,
+				FREF002 /* AppRootView.swift */,
+				FREF003 /* CameraManager.swift */,
+				FREF004 /* ModelProcessor.swift */,
+				FREF005 /* VideoWriter.swift */,
+				FREF006 /* RecordingConfiguration.swift */,
+				FREF007 /* ScoringModels.swift */,
+				FREF008 /* ScoringEngine.swift */,
+				FREF009 /* Stats.swift */,
+				FREF010 /* Support.swift */,
+				FREF011 /* MatchScoring.swift */,
+				FREF012 /* CameraPreview.swift */,
+				FREF013 /* PlayerPoolView.swift */,
+				FREF014 /* TeamSetupView.swift */,
+				FREF015 /* MatchSetupView.swift */,
+				FREF016 /* MatchListView.swift */,
+				FREF017 /* ScoringView.swift */,
+				FREF018 /* BallConfirmSheet.swift */,
+				FREF019 /* CommentaryView.swift */,
+				FREF020 /* ScorecardView.swift */,
+				FREF021 /* PlayerStatsView.swift */,
+				FREF022 /* HighlightBuilder.swift */,
+				FREF023 /* HighlightsView.swift */,
+				FREF052 /* fastvit_sa12_exp21.mlpackage */,
+				FREF050 /* Assets.xcassets */,
+				GRP0000004 /* Preview Content */,
+			);
+			path = "CricReel";
+			sourceTree = "<group>";
+		};
+		GRP0000004 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				FREF051 /* Preview Assets.xcassets */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		GRP0000005 /* CricReelTests */ = {
+			isa = PBXGroup;
+			children = (
+				FREF060 /* ScoringEngineTests.swift */,
+			);
+			path = "CricReelTests";
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		TGT0000001 /* CricReel */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CFL0000002 /* Build configuration list for PBXNativeTarget "CricReel" */;
+			buildPhases = (
+				PHS0000001 /* Sources */,
+				PHS0000002 /* Frameworks */,
+				PHS0000003 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "CricReel";
+			productName = "CricReel";
+			productReference = PROD000001 /* CricReel.app */;
+			productType = "com.apple.product-type.application";
+		};
+		TGT0000002 /* CricReelTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CFL0000003 /* Build configuration list for PBXNativeTarget "CricReelTests" */;
+			buildPhases = (
+				PHS0000004 /* Sources */,
+				PHS0000005 /* Frameworks */,
+				PHS0000006 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DEP0000001 /* PBXTargetDependency */,
+			);
+			name = "CricReelTests";
+			productName = "CricReelTests";
+			productReference = PROD000002 /* CricReelTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		PRJ0000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1530;
+				LastUpgradeCheck = 1530;
+				TargetAttributes = {
+					TGT0000001 = {
+						CreatedOnToolsVersion = 15.3;
+					};
+					TGT0000002 = {
+						CreatedOnToolsVersion = 15.3;
+						TestTargetID = TGT0000001;
+					};
+				};
+			};
+			buildConfigurationList = CFL0000001 /* Build configuration list for PBXProject "CricReel" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = GRP0000001;
+			productRefGroup = GRP0000002 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				TGT0000001 /* CricReel */,
+				TGT0000002 /* CricReelTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		PHS0000003 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BFIL051 /* Preview Assets.xcassets in Resources */,
+				BFIL050 /* Assets.xcassets in Resources */,
+				BFIL052 /* fastvit_sa12_exp21.mlpackage in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		PHS0000006 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		PHS0000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BFIL001 /* CricReelApp.swift in Sources */,
+				BFIL002 /* AppRootView.swift in Sources */,
+				BFIL003 /* CameraManager.swift in Sources */,
+				BFIL004 /* ModelProcessor.swift in Sources */,
+				BFIL005 /* VideoWriter.swift in Sources */,
+				BFIL006 /* RecordingConfiguration.swift in Sources */,
+				BFIL007 /* ScoringModels.swift in Sources */,
+				BFIL008 /* ScoringEngine.swift in Sources */,
+				BFIL009 /* Stats.swift in Sources */,
+				BFIL010 /* Support.swift in Sources */,
+				BFIL011 /* MatchScoring.swift in Sources */,
+				BFIL012 /* CameraPreview.swift in Sources */,
+				BFIL013 /* PlayerPoolView.swift in Sources */,
+				BFIL014 /* TeamSetupView.swift in Sources */,
+				BFIL015 /* MatchSetupView.swift in Sources */,
+				BFIL016 /* MatchListView.swift in Sources */,
+				BFIL017 /* ScoringView.swift in Sources */,
+				BFIL018 /* BallConfirmSheet.swift in Sources */,
+				BFIL019 /* CommentaryView.swift in Sources */,
+				BFIL020 /* ScorecardView.swift in Sources */,
+				BFIL021 /* PlayerStatsView.swift in Sources */,
+				BFIL022 /* HighlightBuilder.swift in Sources */,
+				BFIL023 /* HighlightsView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		PHS0000004 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				BFIL060 /* ScoringEngineTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DEP0000001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = TGT0000001 /* CricReel */;
+			targetProxy = PXY0000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		CFG0000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		CFG0000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+			};
+			name = Release;
+		};
+		CFG0000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"CricReel/Preview Content\"";
+				DEVELOPMENT_TEAM = 9K9Q387VZD;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "CricReel uses the camera to detect bowling actions and record ball clips.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "CricReel saves highlight reels and clips to your Photos library.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.cricreel.app";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		CFG0000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"CricReel/Preview Content\"";
+				DEVELOPMENT_TEAM = 9K9Q387VZD;
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSCameraUsageDescription = "CricReel uses the camera to detect bowling actions and record ball clips.";
+				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "CricReel saves highlight reels and clips to your Photos library.";
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = UIInterfaceOrientationPortrait;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.cricreel.app";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		CFG0000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9K9Q387VZD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.cricreel.app.tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CricReel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CricReel";
+			};
+			name = Debug;
+		};
+		CFG0000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_EMBED_SWIFT_STANDARD_LIBRARIES = YES;
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 9K9Q387VZD;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.cricreel.app.tests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CricReel.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/CricReel";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		CFL0000001 /* Build configuration list for PBXProject "CricReel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFG0000001 /* Debug */,
+				CFG0000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CFL0000002 /* Build configuration list for PBXNativeTarget "CricReel" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFG0000003 /* Debug */,
+				CFG0000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CFL0000003 /* Build configuration list for PBXNativeTarget "CricReelTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CFG0000005 /* Debug */,
+				CFG0000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = PRJ0000001 /* Project object */;
+}
