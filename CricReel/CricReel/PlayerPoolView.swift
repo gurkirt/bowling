@@ -14,6 +14,7 @@ struct PlayerPoolView: View {
 
     @State private var showingAdd = false
     @State private var newName = ""
+    @State private var newReel = ""
     @State private var newBatting = ""
     @State private var newBowling = ""
 
@@ -54,6 +55,8 @@ struct PlayerPoolView: View {
             Form {
                 Section("Player") {
                     TextField("Name", text: $newName)
+                    TextField("Reel name (≤12, shown on scoreboard)", text: $newReel)
+                        .onChange(of: newReel) { _, v in if v.count > 12 { newReel = String(v.prefix(12)) } }
                     TextField("Batting style (optional)", text: $newBatting)
                     TextField("Bowling style (optional)", text: $newBowling)
                 }
@@ -73,8 +76,10 @@ struct PlayerPoolView: View {
     }
 
     private func save() {
+        let trimmed = newName.trimmingCharacters(in: .whitespaces)
         let player = Player(
-            name: newName.trimmingCharacters(in: .whitespaces),
+            name: trimmed,
+            reelName: newReel.trimmingCharacters(in: .whitespaces),
             battingStyle: newBatting.isEmpty ? nil : newBatting,
             bowlingStyle: newBowling.isEmpty ? nil : newBowling)
         context.insert(player)
@@ -82,7 +87,7 @@ struct PlayerPoolView: View {
     }
 
     private func resetAndClose() {
-        newName = ""; newBatting = ""; newBowling = ""
+        newName = ""; newReel = ""; newBatting = ""; newBowling = ""
         showingAdd = false
     }
 

@@ -13,7 +13,6 @@ struct TeamListView: View {
     @Query(sort: \Team.name) private var teams: [Team]
 
     @State private var showingNew = false
-    @State private var newTeamName = ""
 
     var body: some View {
         NavigationStack {
@@ -29,7 +28,8 @@ struct TeamListView: View {
                     } label: {
                         VStack(alignment: .leading) {
                             Text(team.name).font(.headline)
-                            Text("\(team.players.count) players").font(.caption).foregroundStyle(.secondary)
+                            Text("\(team.players.count) players · reel \(team.effectiveReelName)")
+                                .font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -43,14 +43,40 @@ struct TeamListView: View {
                     Button { showingNew = true } label: { Image(systemName: "plus") }
                 }
             }
-            .alert("New Team", isPresented: $showingNew) {
-                TextField("Team name", text: $newTeamName)
-                Button("Create") {
-                    let name = newTeamName.trimmingCharacters(in: .whitespaces)
-                    if !name.isEmpty { context.insert(Team(name: name)) }
-                    newTeamName = ""
+            .sheet(isPresented: $showingNew) { NewTeamSheet() }
+        }
+    }
+}
+
+struct NewTeamSheet: View {
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @State private var name = ""
+    @State private var reel = ""
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Team") {
+                    TextField("Team name", text: $name)
+                    TextField("Reel name (≤6, shown on scoreboard)", text: $reel)
+                        .onChange(of: reel) { _, v in if v.count > 6 { reel = String(v.prefix(6)) } }
                 }
-                Button("Cancel", role: .cancel) { newTeamName = "" }
+            }
+            .navigationTitle("New Team")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Cancel") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Create") {
+                        let n = name.trimmingCharacters(in: .whitespaces)
+                        if !n.isEmpty {
+                            context.insert(Team(name: n, reelName: reel.trimmingCharacters(in: .whitespaces)))
+                        }
+                        dismiss()
+                    }
+                    .disabled(name.trimmingCharacters(in: .whitespaces).isEmpty)
+                }
             }
         }
     }
@@ -64,6 +90,8 @@ struct TeamEditView: View {
         Form {
             Section("Name") {
                 TextField("Team name", text: $team.name)
+                TextField("Reel name (≤6)", text: $team.reelName)
+                    .onChange(of: team.reelName) { _, v in if v.count > 6 { team.reelName = String(v.prefix(6)) } }
             }
             Section("Squad") {
                 if allPlayers.isEmpty {

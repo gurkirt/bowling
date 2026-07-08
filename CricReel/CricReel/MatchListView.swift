@@ -101,9 +101,9 @@ struct MatchHomeView: View {
             }
 
             Section {
-                if let innings = currentInnings, !innings.isComplete {
+                if match.status != .completed {
                     NavigationLink {
-                        ScoringView(match: match, innings: innings)
+                        ScoringView(match: match)
                     } label: {
                         Label("Score Live", systemImage: "dot.radiowaves.left.and.right")
                     }
@@ -137,11 +137,6 @@ struct MatchHomeView: View {
         }
         .navigationTitle("\(match.teamAName) vs \(match.teamBName)")
         .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private var currentInnings: Innings? {
-        let sorted = match.innings.sorted { $0.order < $1.order }
-        return sorted.first(where: { !$0.isComplete }) ?? sorted.last
     }
 
     /// Human-readable result once both innings exist and the match is decided.

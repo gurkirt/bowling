@@ -137,12 +137,18 @@ enum ScoringEngine {
 
     static func computeState(battingOrder: [UUID],
                              deliveries: [DeliveryData],
-                             rules: InningsRules) -> InningsState {
+                             rules: InningsRules,
+                             openers: (striker: UUID, nonStriker: UUID?)? = nil) -> InningsState {
         var state = InningsState()
         guard !battingOrder.isEmpty else { return state }
 
-        state.strikerID = battingOrder.first
-        state.nonStrikerID = battingOrder.count > 1 ? battingOrder[1] : nil
+        if let openers {
+            state.strikerID = openers.striker
+            state.nonStrikerID = openers.nonStriker
+        } else {
+            state.strikerID = battingOrder.first
+            state.nonStrikerID = battingOrder.count > 1 ? battingOrder[1] : nil
+        }
 
         for d in deliveries.sorted(by: { $0.sequence < $1.sequence }) {
             state.justCompletedOver = false
@@ -189,10 +195,16 @@ enum ScoringEngine {
     }
 
     /// Batters who have appeared at the crease (openers + everyone brought in on a wicket).
-    static func appearedBatters(battingOrder: [UUID], deliveries: [DeliveryData]) -> Set<UUID> {
+    static func appearedBatters(battingOrder: [UUID], deliveries: [DeliveryData],
+                                openers: (striker: UUID, nonStriker: UUID?)? = nil) -> Set<UUID> {
         var seen = Set<UUID>()
-        if let a = battingOrder.first { seen.insert(a) }
-        if battingOrder.count > 1 { seen.insert(battingOrder[1]) }
+        if let openers {
+            seen.insert(openers.striker)
+            if let n = openers.nonStriker { seen.insert(n) }
+        } else {
+            if let a = battingOrder.first { seen.insert(a) }
+            if battingOrder.count > 1 { seen.insert(battingOrder[1]) }
+        }
         for d in deliveries where d.newBatterID != nil {
             seen.insert(d.newBatterID!)
         }

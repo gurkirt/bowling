@@ -56,6 +56,7 @@ enum ExtraType: String, Codable, CaseIterable, Identifiable {
 enum DismissalType: String, Codable, CaseIterable, Identifiable {
     case bowled
     case caught
+    case caughtAndBowled
     case lbw
     case runOut
     case stumped
@@ -66,27 +67,34 @@ enum DismissalType: String, Codable, CaseIterable, Identifiable {
 
     var displayName: String {
         switch self {
-        case .bowled:    return "Bowled"
-        case .caught:    return "Caught"
-        case .lbw:       return "LBW"
-        case .runOut:    return "Run Out"
-        case .stumped:   return "Stumped"
-        case .hitWicket: return "Hit Wicket"
-        case .other:     return "Other"
+        case .bowled:          return "Bowled"
+        case .caught:          return "Caught"
+        case .caughtAndBowled: return "C&B"
+        case .lbw:             return "LBW"
+        case .runOut:          return "Run Out"
+        case .stumped:         return "Stumped"
+        case .hitWicket:       return "Hit Wicket"
+        case .other:           return "Other"
         }
     }
 
     /// Whether the dismissal is credited to the bowler.
     var creditedToBowler: Bool {
         switch self {
-        case .bowled, .caught, .lbw, .stumped, .hitWicket: return true
+        case .bowled, .caught, .caughtAndBowled, .lbw, .stumped, .hitWicket: return true
         case .runOut, .other: return false
         }
     }
 
-    /// Whether a fielder is involved (for commentary/stats).
+    /// Whether a separate fielder is involved (C&B is the bowler, so no).
     var involvesFielder: Bool {
         self == .caught || self == .runOut || self == .stumped
+    }
+
+    /// Whether the scorer must be asked who ends up on strike (only run-out / other).
+    /// For every other dismissal the incoming batter takes the striker's end.
+    var asksStrike: Bool {
+        self == .runOut || self == .other
     }
 }
 
@@ -111,20 +119,31 @@ enum HighlightTag: String, Codable, CaseIterable, Identifiable {
 final class Player {
     @Attribute(.unique) var id: UUID
     var name: String
+    /// Short display name (≤12 chars) used on the scoreboard and reels.
+    var reelName: String = ""
     var createdAt: Date
     var battingStyle: String?
     var bowlingStyle: String?
 
     init(id: UUID = UUID(),
          name: String,
+         reelName: String = "",
          battingStyle: String? = nil,
          bowlingStyle: String? = nil,
          createdAt: Date = .now) {
         self.id = id
         self.name = name
+        self.reelName = reelName
         self.battingStyle = battingStyle
         self.bowlingStyle = bowlingStyle
         self.createdAt = createdAt
+    }
+
+    /// Reel name if set, else a sensible short fallback from the full name.
+    var effectiveReelName: String {
+        let trimmed = reelName.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty { return String(trimmed.prefix(12)) }
+        return String(name.prefix(12))
     }
 }
 
@@ -134,17 +153,27 @@ final class Player {
 final class Team {
     @Attribute(.unique) var id: UUID
     var name: String
+    /// Short display name (≤6 chars) used on the scoreboard and reels.
+    var reelName: String = ""
     var createdAt: Date
     @Relationship var players: [Player]
 
     init(id: UUID = UUID(),
          name: String,
+         reelName: String = "",
          players: [Player] = [],
          createdAt: Date = .now) {
         self.id = id
         self.name = name
+        self.reelName = reelName
         self.players = players
         self.createdAt = createdAt
+    }
+
+    var effectiveReelName: String {
+        let trimmed = reelName.trimmingCharacters(in: .whitespaces)
+        if !trimmed.isEmpty { return String(trimmed.prefix(6)) }
+        return String(name.prefix(6))
     }
 }
 
@@ -165,12 +194,18 @@ final class Match {
     var runsPerNoBall: Int
     var wideIsLegalBall: Bool
     var noBallIsLegalBall: Bool
+    /// Max overs a single bowler may bowl (0 = unlimited).
+    var maxOversPerBowler: Int = 0
+    /// Minimum number of distinct bowlers expected (informational / validation).
+    var minBowlers: Int = 2
 
     // Teams
     @Relationship var teamA: Team?
     @Relationship var teamB: Team?
     var teamAName: String
     var teamBName: String
+    var teamAReelName: String = ""
+    var teamBReelName: String = ""
 
     /// Playing XI as ordered player IDs (index = batting order).
     var teamALineupIDs: [UUID]
@@ -193,10 +228,14 @@ final class Match {
          runsPerNoBall: Int = 1,
          wideIsLegalBall: Bool = false,
          noBallIsLegalBall: Bool = false,
+         maxOversPerBowler: Int = 0,
+         minBowlers: Int = 2,
          teamA: Team? = nil,
          teamB: Team? = nil,
          teamAName: String = "",
          teamBName: String = "",
+         teamAReelName: String = "",
+         teamBReelName: String = "",
          teamALineupIDs: [UUID] = [],
          teamBLineupIDs: [UUID] = [],
          tossWinnerIsA: Bool = true,
@@ -213,10 +252,14 @@ final class Match {
         self.runsPerNoBall = runsPerNoBall
         self.wideIsLegalBall = wideIsLegalBall
         self.noBallIsLegalBall = noBallIsLegalBall
+        self.maxOversPerBowler = maxOversPerBowler
+        self.minBowlers = minBowlers
         self.teamA = teamA
         self.teamB = teamB
         self.teamAName = teamAName
         self.teamBName = teamBName
+        self.teamAReelName = teamAReelName
+        self.teamBReelName = teamBReelName
         self.teamALineupIDs = teamALineupIDs
         self.teamBLineupIDs = teamBLineupIDs
         self.tossWinnerIsA = tossWinnerIsA
@@ -235,6 +278,12 @@ final class Match {
     func teamName(isTeamA: Bool) -> String {
         isTeamA ? teamAName : teamBName
     }
+
+    func teamReelName(isTeamA: Bool) -> String {
+        let raw = (isTeamA ? teamAReelName : teamBReelName).trimmingCharacters(in: .whitespaces)
+        if !raw.isEmpty { return String(raw.prefix(6)) }
+        return String(teamName(isTeamA: isTeamA).prefix(6))
+    }
 }
 
 // MARK: - Innings
@@ -245,6 +294,9 @@ final class Innings {
     var order: Int              // 1 or 2
     var battingTeamIsA: Bool
     var isComplete: Bool
+    /// Chosen opening batters (nil until the scorer picks them at the innings start).
+    var openerStrikerID: UUID?
+    var openerNonStrikerID: UUID?
 
     @Relationship(deleteRule: .cascade, inverse: \Delivery.innings) var deliveries: [Delivery]
     var match: Match?
@@ -253,11 +305,15 @@ final class Innings {
          order: Int,
          battingTeamIsA: Bool,
          isComplete: Bool = false,
+         openerStrikerID: UUID? = nil,
+         openerNonStrikerID: UUID? = nil,
          deliveries: [Delivery] = []) {
         self.id = id
         self.order = order
         self.battingTeamIsA = battingTeamIsA
         self.isComplete = isComplete
+        self.openerStrikerID = openerStrikerID
+        self.openerNonStrikerID = openerNonStrikerID
         self.deliveries = deliveries
     }
 

@@ -23,6 +23,8 @@ struct MatchSetupView: View {
     @State private var playersPerSide = 11
     @State private var runsPerWide = 1
     @State private var runsPerNoBall = 1
+    @State private var maxOversPerBowler = 0
+    @State private var minBowlers = 2
     @State private var lineupA: [Player] = []
     @State private var lineupB: [Player] = []
     @State private var tossWinnerIsA = true
@@ -61,6 +63,10 @@ struct MatchSetupView: View {
                         }
                     Stepper("Runs per wide: \(runsPerWide)", value: $runsPerWide, in: 1...5)
                     Stepper("Runs per no-ball: \(runsPerNoBall)", value: $runsPerNoBall, in: 1...5)
+                    Stepper(maxOversPerBowler == 0 ? "Max overs / bowler: no limit"
+                                                   : "Max overs / bowler: \(maxOversPerBowler)",
+                            value: $maxOversPerBowler, in: 0...overs)
+                    Stepper("Min bowlers: \(minBowlers)", value: $minBowlers, in: 2...playersPerSide)
                 }
 
                 if let a = teamA { lineupSection(team: a, lineup: $lineupA) }
@@ -133,8 +139,11 @@ struct MatchSetupView: View {
             playersPerSide: playersPerSide,
             runsPerWide: runsPerWide,
             runsPerNoBall: runsPerNoBall,
+            maxOversPerBowler: maxOversPerBowler,
+            minBowlers: minBowlers,
             teamA: a, teamB: b,
             teamAName: a.name, teamBName: b.name,
+            teamAReelName: a.effectiveReelName, teamBReelName: b.effectiveReelName,
             teamALineupIDs: lineupA.map(\.id),
             teamBLineupIDs: lineupB.map(\.id),
             tossWinnerIsA: tossWinnerIsA,

@@ -41,13 +41,21 @@ enum ClipStore {
 /// Resolves player names from IDs. Build once per view from a `@Query` of players.
 struct PlayerLookup {
     private let namesByID: [UUID: String]
+    private let reelByID: [UUID: String]
 
     init(_ players: [Player]) {
         namesByID = Dictionary(players.map { ($0.id, $0.name) }, uniquingKeysWith: { a, _ in a })
+        reelByID = Dictionary(players.map { ($0.id, $0.effectiveReelName) }, uniquingKeysWith: { a, _ in a })
     }
 
     func name(_ id: UUID?) -> String {
         guard let id else { return "—" }
         return namesByID[id] ?? "Unknown"
+    }
+
+    /// Short display name for scoreboard / reels.
+    func reel(_ id: UUID?) -> String {
+        guard let id else { return "—" }
+        return reelByID[id] ?? namesByID[id] ?? "?"
     }
 }

@@ -48,10 +48,11 @@ enum DeliveryFormatting {
         }
     }
 
-    /// Outcome phrase used in commentary and clip overlays.
+    /// Outcome phrase used in commentary and clip overlays. For a wicket this is only
+    /// the dismissal type (no "OUT" prefix).
     static func outcome(_ d: Delivery) -> String {
         if d.isWicket {
-            return "OUT" + (d.dismissalType.map { " · \($0.displayName)" } ?? "")
+            return d.dismissalType?.displayName ?? "Wicket"
         }
         switch d.extraType {
         case .wide:   return "Wide" + (d.physicalRuns > 0 ? " +\(d.physicalRuns)" : "")
@@ -77,6 +78,24 @@ enum DeliveryFormatting {
     /// Two-line overlay: ("2.3 Bowler → Batter", "FOUR").
     static func overlayLines(_ d: Delivery, lookup: PlayerLookup) -> (String, String) {
         ("\(d.overNumber).\(d.ballInOver) \(lookup.name(d.bowlerID)) → \(lookup.name(d.strikerID))",
+         outcome(d))
+    }
+
+    /// Both teams' scores using reel names, e.g. "IND 120/6  ·  AUS 118/9".
+    static func scoreLine(match: Match) -> String {
+        let a = MatchScoring.teamScore(isTeamA: true, in: match)
+        let b = MatchScoring.teamScore(isTeamA: false, in: match)
+        let aStr = a.batted ? "\(match.teamReelName(isTeamA: true)) \(a.runs)/\(a.wickets)"
+                            : match.teamReelName(isTeamA: true)
+        let bStr = b.batted ? "\(match.teamReelName(isTeamA: false)) \(b.runs)/\(b.wickets)"
+                            : match.teamReelName(isTeamA: false)
+        return "\(aStr)   ·   \(bStr)"
+    }
+
+    /// Three-line overlay for reels / replay: team scores, delivery + players, outcome.
+    static func overlayLines(_ d: Delivery, match: Match, lookup: PlayerLookup) -> (String, String, String) {
+        (scoreLine(match: match),
+         "\(d.overNumber).\(d.ballInOver)  \(lookup.reel(d.bowlerID)) → \(lookup.reel(d.strikerID))",
          outcome(d))
     }
 }

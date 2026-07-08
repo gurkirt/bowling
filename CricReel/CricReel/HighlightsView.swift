@@ -46,7 +46,7 @@ struct HighlightsView: View {
             ForEach(sortedInnings) { innings in
                 let name = innings.battingTeamIsA ? match.teamAName : match.teamBName
                 let clips = builder.reelClips(from: highlightDeliveries(innings, tags: Set(HighlightTag.allCases)),
-                                              lookup: lookup)
+                                              match: match, lookup: lookup)
                 Button {
                     buildReel(clips: clips, name: "\(matchLabel)_\(name.replacingOccurrences(of: " ", with: ""))")
                 } label: {
@@ -137,7 +137,7 @@ struct HighlightsView: View {
         let deliveries = sortedInnings
             .filter { selectedInnings.contains($0.order) }
             .flatMap { highlightDeliveries($0, tags: tags) }
-        return builder.reelClips(from: deliveries, lookup: lookup)
+        return builder.reelClips(from: deliveries, match: match, lookup: lookup)
     }
 
     private func toggleTag(_ tag: HighlightTag) {

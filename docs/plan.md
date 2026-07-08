@@ -105,3 +105,26 @@ Build **CricReel**, a NEW standalone iOS app (separate Xcode project) that reuse
 - `ScoringView` owns start/stop of `CameraManager.session` and `ModelProcessor` inference.
 - Pause triggers: innings/match marked complete, user navigates away from live scoring, app backgrounded.
 - On pause: stop AVCaptureSession, halt frame→model pipeline, cancel/skip in-flight reel renders where safe. Resume on re-entry when scoring still live.
+
+
+Let's keep it as it now, I have few more things to correct in the App
+0. Begining of inning still has a problem, at the beigin of inning we should ask who two are batting then go to bowler selection screen directly. And at the end of inning we should wait user to press finish and still have option to press undo. Once done is pressed we go to main scoring screen there should be only miniscorboard and a button to start next inning where similar to first ininnng we ask who two are starting and who is bowling. 
+
+1. There is bug on out selection in score, new screen open when we press one of out but there is still a dropdown to select the out type and often it is not but is pressed in scoring panel. Add two more out type C&B cuaght and bowled. In case of bowled and c&b only show screen to select next player, and ask for strike only in case of runout or others, otherwise in case of bowled, caught,LBW, HItwicket would always be on strike. Change of over only take effect after strike assignment. 
+
+2. Next over should directly take to screen to select the next bowler, and next bowler can not be the same as bowler who just finished the over so selction list should only contain other bowlers. Also have an option to limit the maximum number of over a bowler can bowl in match creation screen and minmum number of bowlers. So use this info show list of selectable bowlers who still have quote of over left. 
+
+3. Main scoreboard still look bit off; Header is not aligned with rest of table, header is still smaller compared to table numbers. Also top of scoreboard should contain two rows with score of each team and another line below mentioning who won by what or who won the toss and decieded to bat/bowl first. 
+
+4. Main score looks much better, if pressed manual then we should now see preview but only switch to switch to auto delevey detection
+
+5. Make the size all three button on main screen of the same size for undo, swap strike, Bowler. Few minor things: swap strike shoel only contain strike not swap as we have icon for swap; and Bowler Icon is Wrong, it is using better icon. Same batter icon being used for bowlers and batter have no Icon. 
+
+6. Row with Current over score looks bit too small, make them bigger a bit dynincmicall, add next row if needed in case bowler is bowling to many extras. Maybe this can go below three buttons so buttons are always in same place. 
+
+7. While creating Team, team should also provide a "Reel Name" which must be at most 6 characters long and same for the player creation but at most 12 characters long. We use Reel names in miniscoreboard and reels. 
+
+8. Ball-by-ball looks good. At the end of each over there should a summary like runs/wickets in over scoree of current team in bigger letters and next rwo with required runs or empty with CRR, and RRR if second inning. 
+
+9. Issue in overlay, in highlight we are pasting text on previous text. Also make use of reel name of Team and Players. Show each team score like in miniscoreboard in first line, second line deleivery number and who to whom, next line outcome runs or wicket type. Third line should be number and only type of out, do not add OUT for wicket just the Dismissal type. Maybe we can use more contrast in overlay white is mixing with background which is bright sometimes green or brown or blue for sky. 
+ 

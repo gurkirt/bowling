@@ -16,6 +16,7 @@ struct ReelClip {
     let url: URL
     let line1: String
     let line2: String
+    let line3: String
 }
 
 @MainActor
@@ -32,7 +33,7 @@ final class HighlightBuilder: ObservableObject {
     func buildOverReel(match: Match, innings: Innings, overNumber: Int, lookup: PlayerLookup) {
         let clips = reelClips(from: innings.orderedDeliveries.filter {
             $0.overNumber == overNumber && !$0.highlightTags.isEmpty
-        }, lookup: lookup)
+        }, match: match, lookup: lookup)
         guard !clips.isEmpty else { return }
         let out = ClipStore.highlightsDirectory
             .appendingPathComponent("over_\(innings.order)_\(overNumber + 1)_\(shortID()).mp4")
@@ -56,11 +57,11 @@ final class HighlightBuilder: ObservableObject {
     }
 
     /// Map deliveries (that have an existing clip) to ReelClips with overlay text.
-    func reelClips(from deliveries: [Delivery], lookup: PlayerLookup) -> [ReelClip] {
+    func reelClips(from deliveries: [Delivery], match: Match, lookup: PlayerLookup) -> [ReelClip] {
         deliveries.compactMap { d in
             guard let name = d.clipFilename, ClipStore.clipExists(name) else { return nil }
-            let (l1, l2) = DeliveryFormatting.overlayLines(d, lookup: lookup)
-            return ReelClip(url: ClipStore.url(forClip: name), line1: l1, line2: l2)
+            let (l1, l2, l3) = DeliveryFormatting.overlayLines(d, match: match, lookup: lookup)
+            return ReelClip(url: ClipStore.url(forClip: name), line1: l1, line2: l2, line3: l3)
         }
     }
 
@@ -166,17 +167,16 @@ final class HighlightBuilder: ObservableObject {
         for seg in segments {
             let text = Self.makeTextLayer(seg.clip, renderSize: renderSize)
             // Origin is bottom-left for the animation tool → place near the top (10–30%).
-            text.frame = CGRect(x: renderSize.width * 0.05, y: renderSize.height * 0.70,
-                                width: renderSize.width * 0.90, height: renderSize.height * 0.18)
+            text.frame = CGRect(x: renderSize.width * 0.04, y: renderSize.height * 0.64,
+                                width: renderSize.width * 0.92, height: renderSize.height * 0.24)
             text.opacity = 0
-            let start = CMTimeGetSeconds(seg.start)
-            let end = start + CMTimeGetSeconds(seg.duration)
+            let s = max(0, min(1, CMTimeGetSeconds(seg.start) / totalSeconds))
+            let e = max(s, min(1, (CMTimeGetSeconds(seg.start) + CMTimeGetSeconds(seg.duration)) / totalSeconds))
             let anim = CAKeyframeAnimation(keyPath: "opacity")
-            anim.values = [0, 1, 1, 0]
-            anim.keyTimes = [NSNumber(value: max(0, start / totalSeconds)),
-                             NSNumber(value: max(0, start / totalSeconds)),
-                             NSNumber(value: min(1, end / totalSeconds)),
-                             NSNumber(value: min(1, end / totalSeconds))]
+            // Visible only within [s, e]; keyTimes span the full [0,1] so segments never bleed.
+            anim.values = [0, 0, 1, 1, 0, 0]
+            anim.keyTimes = [0, NSNumber(value: s), NSNumber(value: s),
+                             NSNumber(value: e), NSNumber(value: e), 1]
             anim.calculationMode = .discrete
             anim.beginTime = AVCoreAnimationBeginTimeAtZero
             anim.duration = totalSeconds
@@ -195,18 +195,27 @@ final class HighlightBuilder: ObservableObject {
         layer.alignmentMode = .center
         layer.isWrapped = true
         layer.truncationMode = .end
+        // Dark translucent band for contrast against bright pitches / sky.
+        layer.backgroundColor = UIColor.black.withAlphaComponent(0.38).cgColor
+        layer.cornerRadius = renderSize.height * 0.012
+        layer.masksToBounds = true
 
-        let f1 = UIFont.systemFont(ofSize: renderSize.height * 0.030, weight: .bold)
-        let f2 = UIFont.systemFont(ofSize: renderSize.height * 0.026, weight: .semibold)
+        let f1 = UIFont.systemFont(ofSize: renderSize.height * 0.026, weight: .semibold) // scores
+        let f2 = UIFont.systemFont(ofSize: renderSize.height * 0.024, weight: .medium)   // delivery
+        let f3 = UIFont.systemFont(ofSize: renderSize.height * 0.032, weight: .heavy)     // outcome
         let shadow = NSShadow()
-        shadow.shadowColor = UIColor.black.withAlphaComponent(0.8)
-        shadow.shadowBlurRadius = 6
-        shadow.shadowOffset = .zero
-        let attr = NSMutableAttributedString(string: clip.line1 + "\n", attributes: [
-            .font: f1, .foregroundColor: UIColor.white, .shadow: shadow])
-        attr.append(NSAttributedString(string: clip.line2, attributes: [
-            .font: f2, .foregroundColor: UIColor.white, .shadow: shadow]))
-        layer.string = attr
+        shadow.shadowColor = UIColor.black.withAlphaComponent(0.9)
+        shadow.shadowBlurRadius = 5
+        shadow.shadowOffset = CGSize(width: 0, height: 1)
+
+        func attrs(_ font: UIFont) -> [NSAttributedString.Key: Any] {
+            [.font: font, .foregroundColor: UIColor.white,
+             .strokeColor: UIColor.black, .strokeWidth: -2.5, .shadow: shadow]
+        }
+        let str = NSMutableAttributedString(string: clip.line1 + "\n", attributes: attrs(f1))
+        str.append(NSAttributedString(string: clip.line2 + "\n", attributes: attrs(f2)))
+        str.append(NSAttributedString(string: clip.line3, attributes: attrs(f3)))
+        layer.string = str
         return layer
     }
 

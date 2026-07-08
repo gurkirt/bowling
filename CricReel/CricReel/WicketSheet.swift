@@ -2,8 +2,10 @@
 //  WicketSheet.swift
 //  CricReel
 //
-//  Collects dismissal details and deterministically resolves the batters at the crease
-//  afterwards (handles run-outs, runs completed, new batter, and end-of-over strike).
+//  Collects dismissal details for a preset wicket type and deterministically resolves
+//  the batters at the crease afterwards. No dismissal dropdown — the type is chosen on
+//  the pad. Strike is only asked for run-out / other; the over change is applied after
+//  strike is assigned.
 //
 
 import SwiftUI
@@ -26,38 +28,41 @@ struct WicketSheet: View {
 
     @Environment(\.dismiss) private var dismiss
 
-    @State private var dismissal: DismissalType = .bowled
     @State private var dismissedIsStriker = true
     @State private var fielderID: UUID?
     @State private var runsCompleted = 0
     @State private var newBatterID: UUID?
     @State private var strikerIsFirstResult = true
 
+    private var dismissal: DismissalType { presetDismissal ?? .bowled }
+    private var allOut: Bool { availableBatters.isEmpty }
+
     var body: some View {
         NavigationStack {
             Form {
-                if clipFilename != nil {
-                    Section("Detected Clip") {
-                        Label("Clip will be attached to this ball", systemImage: "film")
-                            .font(.caption)
-                        if let onDiscardClip {
-                            Button(role: .destructive) { onDiscardClip(); dismiss() } label: {
-                                Label("Not a delivery (discard clip)", systemImage: "trash")
-                            }
+                Section {
+                    HStack {
+                        Image(systemName: "figure.fall").foregroundStyle(.red)
+                        Text(dismissal.displayName).font(.headline)
+                    }
+                }
+
+                if clipFilename != nil, let onDiscardClip {
+                    Section {
+                        Button(role: .destructive) { onDiscardClip(); dismiss() } label: {
+                            Label("Not a delivery (discard clip)", systemImage: "trash")
                         }
                     }
                 }
 
-                Section("Dismissal") {
-                    Picker("How out", selection: $dismissal) {
-                        ForEach(DismissalType.allCases) { Text($0.displayName).tag($0) }
+                if dismissal.asksStrike {
+                    Section("Batter out") {
+                        Picker("Batter out", selection: $dismissedIsStriker) {
+                            Text(strikerName).tag(true)
+                            Text(nonStrikerName).tag(false)
+                        }
+                        .pickerStyle(.segmented)
                     }
-                    Picker("Batter out", selection: $dismissedIsStriker) {
-                        Text(strikerName).tag(true)
-                        Text(nonStrikerName).tag(false)
-                    }
-                    .pickerStyle(.segmented)
-                    .disabled(dismissal != .runOut)  // only run-out can dismiss the non-striker
                 }
 
                 if dismissal.involvesFielder {
@@ -79,7 +84,7 @@ struct WicketSheet: View {
                 }
 
                 Section("New batter") {
-                    if availableBatters.isEmpty {
+                    if allOut {
                         Text("All out — no batter remaining.").foregroundStyle(.secondary)
                     } else {
                         Picker("Coming in", selection: $newBatterID) {
@@ -90,12 +95,13 @@ struct WicketSheet: View {
                     }
                 }
 
-                if !availableBatters.isEmpty {
+                if !allOut && dismissal.asksStrike {
                     Section(header: Text("On strike for next ball"),
-                            footer: Text(isLastBallOfOver ? "Over ends on this ball — strike has been rotated. Adjust if needed." : "Adjust if the batters crossed.")) {
+                            footer: Text(isLastBallOfOver ? "Over ends on this ball — strike rotates after this choice." : "")) {
+                        let r = resultBatters()
                         Picker("Striker", selection: $strikerIsFirstResult) {
-                            Text(lookup.name(resultBatters().0)).tag(true)
-                            Text(lookup.name(resultBatters().1)).tag(false)
+                            Text(lookup.name(r.0)).tag(true)
+                            Text(lookup.name(r.1)).tag(false)
                         }
                         .pickerStyle(.segmented)
                     }
@@ -107,51 +113,42 @@ struct WicketSheet: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Cancel") { onCancel(); dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Save") { commit() } }
             }
-            .onAppear {
-                if let preset = presetDismissal { dismissal = preset }
-                if dismissal != .runOut { dismissedIsStriker = true }
-                newBatterID = availableBatters.first
-            }
-            .onChange(of: dismissal) { _, new in
-                if new != .runOut { dismissedIsStriker = true; runsCompleted = 0 }
-            }
+            .onAppear { newBatterID = availableBatters.first }
         }
     }
 
-    /// The two batters at the crease after the dismissal, before choosing who's on strike.
-    /// Returns (defaultStrikerEnd, defaultNonStrikerEnd).
+    /// Batters at the crease after runs + replacement, BEFORE any end-of-over swap.
     private func resultBatters() -> (UUID, UUID) {
-        // Positions after the runs completed.
         let crossed = runsCompleted % 2 == 1
         let atStrikerEnd = crossed ? nonStrikerID : strikerID
         let atNonStrikerEnd = crossed ? strikerID : nonStrikerID
 
-        let outID = dismissedIsStriker ? strikerID : nonStrikerID
+        let outID = (dismissal.asksStrike && !dismissedIsStriker) ? nonStrikerID : strikerID
         let incoming = newBatterID ?? outID
 
         var sEnd = atStrikerEnd
         var nEnd = atNonStrikerEnd
         if outID == sEnd { sEnd = incoming } else if outID == nEnd { nEnd = incoming }
-
-        if isLastBallOfOver { swap(&sEnd, &nEnd) }
         return (sEnd, nEnd)
     }
 
     private func commit() {
         let (a, b) = resultBatters()
-        let striker = strikerIsFirstResult ? a : b
-        let nonStriker = strikerIsFirstResult ? b : a
+        var striker = dismissal.asksStrike ? (strikerIsFirstResult ? a : b) : a
+        var nonStriker = dismissal.asksStrike ? (strikerIsFirstResult ? b : a) : b
+        // Over change takes effect after strike is assigned.
+        if isLastBallOfOver { swap(&striker, &nonStriker) }
 
         var input = BallInput()
         input.extra = .none
         input.padRuns = dismissal == .runOut ? runsCompleted : 0
         input.isWicket = true
         input.dismissal = dismissal
-        input.dismissedPlayerID = dismissedIsStriker ? strikerID : nonStrikerID
+        input.dismissedPlayerID = (dismissal.asksStrike && !dismissedIsStriker) ? nonStrikerID : strikerID
         input.fielderID = dismissal.involvesFielder ? fielderID : nil
-        input.newBatterID = availableBatters.isEmpty ? nil : newBatterID
-        input.strikerAfterID = availableBatters.isEmpty ? nil : striker
-        input.nonStrikerAfterID = availableBatters.isEmpty ? nil : nonStriker
+        input.newBatterID = allOut ? nil : newBatterID
+        input.strikerAfterID = allOut ? nil : striker
+        input.nonStrikerAfterID = allOut ? nil : nonStriker
         onCommit(input)
         dismiss()
     }
