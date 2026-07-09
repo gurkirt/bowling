@@ -150,23 +150,35 @@ struct BowlerPickerSheet: View {
     let lookup: PlayerLookup
     let current: UUID?
     var onSelect: (UUID) -> Void
+    var onUndo: (() -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             List {
-                if bowlerIDs.isEmpty {
-                    Text("No eligible bowlers (quota reached).").foregroundStyle(.secondary)
+                if let onUndo {
+                    Section {
+                        Button(role: .destructive) { onUndo() } label: {
+                            Label("Undo Last Ball", systemImage: "arrow.uturn.backward")
+                        }
+                    } footer: {
+                        Text("Removes the previous delivery and reopens that over.")
+                    }
                 }
-                ForEach(bowlerIDs, id: \.self) { id in
-                    Button {
-                        onSelect(id); dismiss()
-                    } label: {
-                        HStack {
-                            Text(lookup.name(id)).foregroundStyle(.primary)
-                            Spacer()
-                            if id == current { Image(systemName: "checkmark").foregroundStyle(.blue) }
+                Section {
+                    if bowlerIDs.isEmpty {
+                        Text("No eligible bowlers (quota reached).").foregroundStyle(.secondary)
+                    }
+                    ForEach(bowlerIDs, id: \.self) { id in
+                        Button {
+                            onSelect(id); dismiss()
+                        } label: {
+                            HStack {
+                                Text(lookup.name(id)).foregroundStyle(.primary)
+                                Spacer()
+                                if id == current { Image(systemName: "checkmark").foregroundStyle(.blue) }
+                            }
                         }
                     }
                 }

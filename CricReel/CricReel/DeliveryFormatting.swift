@@ -75,6 +75,22 @@ enum DeliveryFormatting {
         "\(lookup.name(d.bowlerID)) to \(lookup.name(d.strikerID)), \(outcome(d))"
     }
 
+    /// Cricinfo-style dismissal text for a wicket delivery, e.g. "c Smith b Jones".
+    static func dismissalText(_ d: Delivery, lookup: PlayerLookup) -> String {
+        let bowler = lookup.name(d.bowlerID)
+        let fielder = d.fielderID.map { lookup.name($0) }
+        switch d.dismissalType {
+        case .bowled:          return "b \(bowler)"
+        case .lbw:             return "lbw b \(bowler)"
+        case .caught:          return "c \(fielder ?? "sub") b \(bowler)"
+        case .caughtAndBowled: return "c & b \(bowler)"
+        case .stumped:         return "st \(fielder ?? "†") b \(bowler)"
+        case .hitWicket:       return "hit wicket b \(bowler)"
+        case .runOut:          return fielder.map { "run out (\($0))" } ?? "run out"
+        case .other, .none:    return "out"
+        }
+    }
+
     /// Two-line overlay: ("2.3 Bowler → Batter", "FOUR").
     static func overlayLines(_ d: Delivery, lookup: PlayerLookup) -> (String, String) {
         ("\(d.overNumber).\(d.ballInOver) \(lookup.name(d.bowlerID)) → \(lookup.name(d.strikerID))",

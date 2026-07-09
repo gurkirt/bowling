@@ -75,6 +75,16 @@ enum MatchScoring {
             openers: openers(for: innings, in: match))
     }
 
+    /// State computed from an explicit delivery list (used by undo, where the SwiftData
+    /// relationship may not reflect a just-deleted delivery synchronously).
+    static func state(for innings: Innings, in match: Match, deliveries: [Delivery]) -> InningsState {
+        ScoringEngine.computeState(
+            battingOrder: battingOrder(for: innings, in: match),
+            deliveries: deliveries.map(DeliveryData.init),
+            rules: rules(for: match, innings: innings),
+            openers: openers(for: innings, in: match))
+    }
+
     static func appearedBatters(for innings: Innings, in match: Match) -> Set<UUID> {
         ScoringEngine.appearedBatters(
             battingOrder: battingOrder(for: innings, in: match),

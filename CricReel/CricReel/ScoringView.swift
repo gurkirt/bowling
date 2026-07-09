@@ -275,6 +275,12 @@ struct ScoringView: View {
                 Label("Select Bowler", systemImage: "baseball").frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large)
+            if !innings.deliveries.isEmpty {
+                Button(role: .destructive) { undoLast(innings) } label: {
+                    Label("Undo Last Ball", systemImage: "arrow.uturn.backward").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+            }
         }
         .padding().frame(maxWidth: .infinity)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
@@ -327,11 +333,13 @@ struct ScoringView: View {
     // MARK: - Sheets
 
     private var bowlerPickerSheet: some View {
-        let innings = innings
-        let eligible = innings.map { MatchScoring.eligibleBowlers(for: $0, in: match, excluding: lastBowlerID($0)) } ?? []
-        return BowlerPickerSheet(bowlerIDs: eligible, lookup: lookup, current: selectedBowlerID) {
-            selectedBowlerID = $0
-        }
+        let current = innings
+        let eligible = current.map { MatchScoring.eligibleBowlers(for: $0, in: match, excluding: lastBowlerID($0)) } ?? []
+        let canUndo = current?.deliveries.isEmpty == false
+        return BowlerPickerSheet(
+            bowlerIDs: eligible, lookup: lookup, current: selectedBowlerID,
+            onSelect: { selectedBowlerID = $0 },
+            onUndo: canUndo ? { if let i = current { undoLast(i) } } : nil)
     }
 
     @ViewBuilder
@@ -465,8 +473,20 @@ struct ScoringView: View {
             try? FileManager.default.removeItem(at: ClipStore.url(forClip: clip))
         }
         context.delete(last)
-        let s = MatchScoring.state(for: innings, in: match)
-        selectedBowlerID = s.ballsThisOver > 0 ? currentOverBowlerID(innings) : nil
+        // Recompute from the explicit remaining list — context.delete isn't reflected on the
+        // relationship synchronously.
+        let remaining = innings.orderedDeliveries.filter { $0.id != last.id }
+        let s = MatchScoring.state(for: innings, in: match, deliveries: remaining)
+        if s.ballsThisOver > 0, let prev = remaining.last {
+            // Mid-over: keep bowling with the current over's bowler.
+            selectedBowlerID = prev.bowlerID
+            showingBowlerPicker = false
+        } else {
+            // Over boundary (or innings start): a new bowler is needed. Pop the list when an
+            // over remains, keeping the undo chain reachable from the sheet.
+            selectedBowlerID = nil
+            showingBowlerPicker = !remaining.isEmpty
+        }
         updateDetectionState()
     }
 

@@ -27,6 +27,7 @@ struct BowlingLine: Identifiable {
     var legalBalls: Int = 0
     var runsConceded: Int = 0
     var wickets: Int = 0
+    var maidens: Int = 0
     var wides: Int = 0
     var noBalls: Int = 0
 
@@ -37,6 +38,8 @@ struct BowlingLine: Identifiable {
         legalBalls == 0 ? 0 : Double(runsConceded) / (Double(legalBalls) / 6.0)
     }
 }
+
+private struct BowlerOver: Hashable { let bowler: UUID; let over: Int }
 
 enum StatsBuilder {
 
@@ -78,6 +81,14 @@ enum StatsBuilder {
                 l.wickets += 1
             }
             lines[d.bowlerID] = l
+        }
+
+        // Maidens: a completed over in which the bowler concedes 0 runs.
+        let byBowlerOver = Dictionary(grouping: deliveries) { BowlerOver(bowler: $0.bowlerID, over: $0.overNumber) }
+        for (key, balls) in byBowlerOver {
+            let legal = balls.filter { $0.isLegalDelivery }.count
+            let conceded = balls.reduce(0) { $0 + $1.bowlerChargedRuns }
+            if legal >= 6 && conceded == 0 { lines[key.bowler]?.maidens += 1 }
         }
         return lines
     }
