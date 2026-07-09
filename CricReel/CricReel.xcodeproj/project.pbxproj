@@ -34,7 +34,7 @@
 		BFIL025 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF025 /* SettingsView.swift */; };
 		BFIL026 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF026 /* SettingsStore.swift */; };
 		BFIL027 /* MiniScoreboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF027 /* MiniScoreboard.swift */; };
-		BFIL028 /* ClipOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF028 /* ClipOverlay.swift */; };
+		BFIL030 /* ClipOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF030 /* ClipOverlay.swift */; };
 		BFIL028 /* DeliveryFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF028 /* DeliveryFormatting.swift */; };
 		BFIL029 /* ScoringEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF029 /* ScoringEntryView.swift */; };
 		BFIL050 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FREF050 /* Assets.xcassets */; };
@@ -83,7 +83,7 @@
 		FREF025 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		FREF026 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		FREF027 /* MiniScoreboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniScoreboard.swift; sourceTree = "<group>"; };
-		FREF028 /* ClipOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipOverlay.swift; sourceTree = "<group>"; };
+		FREF030 /* ClipOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipOverlay.swift; sourceTree = "<group>"; };
 		FREF028 /* DeliveryFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeliveryFormatting.swift; sourceTree = "<group>"; };
 		FREF029 /* ScoringEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEntryView.swift; sourceTree = "<group>"; };
 		FREF050 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -158,7 +158,7 @@
 				FREF025 /* SettingsView.swift */,
 				FREF026 /* SettingsStore.swift */,
 				FREF027 /* MiniScoreboard.swift */,
-				FREF028 /* ClipOverlay.swift */,
+				FREF030 /* ClipOverlay.swift */,
 				FREF028 /* DeliveryFormatting.swift */,
 				FREF029 /* ScoringEntryView.swift */,
 				FREF052 /* fastvit_sa12_exp21.mlpackage */,
@@ -312,7 +312,7 @@
 				BFIL025 /* SettingsView.swift in Sources */,
 				BFIL026 /* SettingsStore.swift in Sources */,
 				BFIL027 /* MiniScoreboard.swift in Sources */,
-				BFIL028 /* ClipOverlay.swift in Sources */,
+				BFIL030 /* ClipOverlay.swift in Sources */,
 				BFIL028 /* DeliveryFormatting.swift in Sources */,
 				BFIL029 /* ScoringEntryView.swift in Sources */,
 			);
