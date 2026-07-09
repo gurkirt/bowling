@@ -100,7 +100,7 @@ struct ScorecardView: View {
         Section("\(teamName) — \(state.totalRuns)/\(state.wickets) (\(state.oversDisplay) ov)") {
             Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
                 GridRow {
-                    Text("Batter").gridColumnAlignment(.leading)
+                    Text("Batter").frame(maxWidth: .infinity, alignment: .leading).gridColumnAlignment(.leading)
                     Text("R").gridColumnAlignment(.trailing)
                     Text("B").gridColumnAlignment(.trailing)
                     Text("4s").gridColumnAlignment(.trailing)
@@ -117,6 +117,7 @@ struct ScorecardView: View {
                             Text(dismissalTextFor(id, deliveries: deliveries))
                                 .font(.caption2).foregroundStyle(.secondary).lineLimit(1)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                         num("\(line.runs)", bold: true)
                         num("\(line.ballsFaced)")
                         num("\(line.fours)")
@@ -167,7 +168,7 @@ struct ScorecardView: View {
             Section("Bowling") {
                 Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
                     GridRow {
-                        Text("Bowler").gridColumnAlignment(.leading)
+                        Text("Bowler").frame(maxWidth: .infinity, alignment: .leading).gridColumnAlignment(.leading)
                         Text("O").gridColumnAlignment(.trailing)
                         Text("M").gridColumnAlignment(.trailing)
                         Text("R").gridColumnAlignment(.trailing)
@@ -180,6 +181,7 @@ struct ScorecardView: View {
                         let line = bowling[id] ?? BowlingLine(playerID: id)
                         GridRow {
                             Text(lookup.name(id)).font(.subheadline).lineLimit(1)
+                                .frame(maxWidth: .infinity, alignment: .leading)
                             num(line.oversDisplay)
                             num("\(line.maidens)")
                             num("\(line.runsConceded)")
