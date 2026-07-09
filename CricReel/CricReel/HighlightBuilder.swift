@@ -94,46 +94,93 @@ final class HighlightBuilder: ObservableObject {
 
     nonisolated static func stitch(clips: [ReelClip], outputURL: URL) async throws -> URL {
         let composition = AVMutableComposition()
-        guard let videoTrack = composition.addMutableTrack(
-            withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+        guard let trackA = composition.addMutableTrack(
+                withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
+              let trackB = composition.addMutableTrack(
+                withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
             throw ReelError.trackCreationFailed
         }
+        let tracks = [trackA, trackB]
 
-        var cursor = CMTime.zero
+        // Load sources + durations first (needed to compute overlaps).
+        var srcs: [AVAssetTrack] = []
+        var durations: [CMTime] = []
+        var usable: [ReelClip] = []
         var renderSize = CGSize(width: 1080, height: 1920)
         var preferred = CGAffineTransform.identity
-        var segments: [(start: CMTime, duration: CMTime, clip: ReelClip)] = []
-
         for clip in clips {
             let asset = AVURLAsset(url: clip.url)
-            let tracks = try await asset.loadTracks(withMediaType: .video)
-            guard let src = tracks.first else { continue }
+            let vtracks = try await asset.loadTracks(withMediaType: .video)
+            guard let src = vtracks.first else { continue }
             let duration = try await asset.load(.duration)
-            try videoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: duration),
-                                           of: src, at: cursor)
-            let naturalSize = try await src.load(.naturalSize)
-            preferred = try await src.load(.preferredTransform)
-            let rect = CGRect(origin: .zero, size: naturalSize).applying(preferred)
-            renderSize = CGSize(width: abs(rect.width), height: abs(rect.height))
-            segments.append((cursor, duration, clip))
-            cursor = CMTimeAdd(cursor, duration)
+            if srcs.isEmpty {
+                let naturalSize = try await src.load(.naturalSize)
+                preferred = try await src.load(.preferredTransform)
+                let rect = CGRect(origin: .zero, size: naturalSize).applying(preferred)
+                renderSize = CGSize(width: abs(rect.width), height: abs(rect.height))
+            }
+            srcs.append(src); durations.append(duration); usable.append(clip)
         }
-        guard cursor > .zero else { throw ReelError.noUsableClips }
-        videoTrack.preferredTransform = preferred
+        let n = srcs.count
+        guard n > 0 else { throw ReelError.noUsableClips }
 
-        let total = cursor
+        // Half-second crossfade, clamped so it never approaches a clip's length.
+        let minDur = durations.map { CMTimeGetSeconds($0) }.min() ?? 0
+        let transSecs = n > 1 ? min(0.5, max(0, minDur * 0.4)) : 0
+        let T = CMTime(seconds: transSecs, preferredTimescale: 600)
+
+        // Place clips on alternating tracks, overlapping the previous one by T.
+        var clipStarts: [CMTime] = []
+        var start = CMTime.zero
+        for i in 0..<n {
+            try tracks[i % 2].insertTimeRange(CMTimeRange(start: .zero, duration: durations[i]),
+                                              of: srcs[i], at: start)
+            clipStarts.append(start)
+            start = CMTimeSubtract(CMTimeAdd(start, durations[i]), T)
+        }
+        let total = CMTimeAdd(clipStarts[n - 1], durations[n - 1])
+
+        // Caption segments — non-overlapping: each ends when the next clip starts.
+        var segments: [(start: CMTime, duration: CMTime, clip: ReelClip)] = []
+        for i in 0..<n {
+            let end = (i < n - 1) ? clipStarts[i + 1] : total
+            segments.append((clipStarts[i], CMTimeSubtract(end, clipStarts[i]), usable[i]))
+        }
+
+        // Passthrough + crossfade instructions covering the whole timeline contiguously.
+        var instructions: [AVVideoCompositionInstructionProtocol] = []
+        for i in 0..<n {
+            let passStart = (i == 0) ? .zero : CMTimeAdd(clipStarts[i], T)
+            let passEnd = (i == n - 1) ? total : clipStarts[i + 1]
+            if CMTimeCompare(passEnd, passStart) > 0 {
+                let inst = AVMutableVideoCompositionInstruction()
+                inst.timeRange = CMTimeRange(start: passStart, end: passEnd)
+                let li = AVMutableVideoCompositionLayerInstruction(assetTrack: tracks[i % 2])
+                li.setTransform(preferred, at: .zero)
+                inst.layerInstructions = [li]
+                instructions.append(inst)
+            }
+            if i < n - 1 {
+                let range = CMTimeRange(start: clipStarts[i + 1], end: CMTimeAdd(clipStarts[i + 1], T))
+                let fg = AVMutableVideoCompositionLayerInstruction(assetTrack: tracks[i % 2])
+                fg.setTransform(preferred, at: .zero)
+                fg.setOpacityRamp(fromStartOpacity: 1, toEndOpacity: 0, timeRange: range)
+                let bg = AVMutableVideoCompositionLayerInstruction(assetTrack: tracks[(i + 1) % 2])
+                bg.setTransform(preferred, at: .zero)
+                let inst = AVMutableVideoCompositionInstruction()
+                inst.timeRange = range
+                inst.layerInstructions = [fg, bg]   // fg on top fades out to reveal bg
+                instructions.append(inst)
+            }
+        }
+
         let (parentLayer, videoLayer) = await Self.buildLayers(renderSize: renderSize,
                                                                segments: segments, total: total)
 
         let videoComposition = AVMutableVideoComposition()
         videoComposition.renderSize = renderSize
         videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
-        let instruction = AVMutableVideoCompositionInstruction()
-        instruction.timeRange = CMTimeRange(start: .zero, duration: total)
-        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
-        layerInstruction.setTransform(preferred, at: .zero)
-        instruction.layerInstructions = [layerInstruction]
-        videoComposition.instructions = [instruction]
+        videoComposition.instructions = instructions
         videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
             postProcessingAsVideoLayer: videoLayer, in: parentLayer)
 
