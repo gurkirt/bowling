@@ -93,219 +93,66 @@ final class HighlightBuilder: ObservableObject {
     // MARK: - Stitching + overlay burn-in
 
     nonisolated static func stitch(clips: [ReelClip], outputURL: URL) async throws -> URL {
-        // Load sources + durations.
-        var srcs: [AVAssetTrack] = []
-        var durations: [CMTime] = []
-        var usable: [ReelClip] = []
+        let composition = AVMutableComposition()
+        guard let videoTrack = composition.addMutableTrack(
+            withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
+            throw ReelError.trackCreationFailed
+        }
+
+        var cursor = CMTime.zero
         var renderSize = CGSize(width: 1080, height: 1920)
         var preferred = CGAffineTransform.identity
+        var segments: [(start: CMTime, duration: CMTime, clip: ReelClip)] = []
+
         for clip in clips {
             let asset = AVURLAsset(url: clip.url)
-            let vtracks = try await asset.loadTracks(withMediaType: .video)
-            guard let src = vtracks.first else { continue }
+            let tracks = try await asset.loadTracks(withMediaType: .video)
+            guard let src = tracks.first else { continue }
             let duration = try await asset.load(.duration)
-            if srcs.isEmpty {
-                let naturalSize = try await src.load(.naturalSize)
-                preferred = try await src.load(.preferredTransform)
-                let rect = CGRect(origin: .zero, size: naturalSize).applying(preferred)
-                renderSize = CGSize(width: abs(rect.width), height: abs(rect.height))
-            }
-            srcs.append(src); durations.append(duration); usable.append(clip)
+            try videoTrack.insertTimeRange(CMTimeRange(start: .zero, duration: duration),
+                                           of: src, at: cursor)
+            let naturalSize = try await src.load(.naturalSize)
+            preferred = try await src.load(.preferredTransform)
+            let rect = CGRect(origin: .zero, size: naturalSize).applying(preferred)
+            renderSize = CGSize(width: abs(rect.width), height: abs(rect.height))
+            segments.append((cursor, duration, clip))
+            cursor = CMTimeAdd(cursor, duration)
         }
-        let n = srcs.count
-        guard n > 0 else { throw ReelError.noUsableClips }
+        guard cursor > .zero else { throw ReelError.noUsableClips }
+        videoTrack.preferredTransform = preferred
 
-        // Timeline (clip starts, total, caption segments) for a given transition length.
-        func timeline(_ transSecs: Double) -> (starts: [CMTime], total: CMTime,
-                                               segments: [(start: CMTime, duration: CMTime, clip: ReelClip)]) {
-            let t = CMTime(seconds: transSecs, preferredTimescale: 600)
-            var starts: [CMTime] = []
-            var start = CMTime.zero
-            for i in 0..<n {
-                starts.append(start)
-                start = CMTimeSubtract(CMTimeAdd(start, durations[i]), t)
-            }
-            let total = CMTimeAdd(starts[n - 1], durations[n - 1])
-            var segs: [(start: CMTime, duration: CMTime, clip: ReelClip)] = []
-            for i in 0..<n {
-                let end = (i < n - 1) ? starts[i + 1] : total
-                segs.append((starts[i], CMTimeSubtract(end, starts[i]), usable[i]))
-            }
-            return (starts, total, segs)
-        }
-
-        let minDur = durations.map { CMTimeGetSeconds($0) }.min() ?? 0
-        let transSecs = n > 1 ? min(0.5, max(0, minDur * 0.4)) : 0
-
-        // Pass 1 — build the stitched base video (crossfade, with a plain-concat fallback).
-        var baseURL: URL
-        var segments: [(start: CMTime, duration: CMTime, clip: ReelClip)]
-        var total: CMTime
-        if n == 1 {
-            let tl = timeline(0)
-            baseURL = usable[0].url; segments = tl.segments; total = tl.total
-        } else {
-            do {
-                let tl = timeline(transSecs)
-                baseURL = try await renderTransitions(srcs: srcs, durations: durations, starts: tl.starts,
-                                                      transitionSecs: transSecs, total: tl.total,
-                                                      renderSize: renderSize, preferred: preferred)
-                segments = tl.segments; total = tl.total
-            } catch {
-                let tl = timeline(0)
-                baseURL = try await renderConcat(srcs: srcs, durations: durations, total: tl.total,
-                                                 renderSize: renderSize, preferred: preferred)
-                segments = tl.segments; total = tl.total
-            }
-        }
-
-        // Pass 2 — burn the captions onto the base video (single track + animation tool).
-        return try await renderOverlay(baseURL: baseURL, segments: segments, total: total,
-                                       renderSize: renderSize, outputURL: outputURL)
-    }
-
-    /// Crossfade the clips onto two alternating tracks (no caption overlay in this pass).
-    nonisolated private static func renderTransitions(
-        srcs: [AVAssetTrack], durations: [CMTime], starts: [CMTime],
-        transitionSecs: Double, total: CMTime, renderSize: CGSize,
-        preferred: CGAffineTransform) async throws -> URL {
-
-        let n = srcs.count
-        let T = CMTime(seconds: transitionSecs, preferredTimescale: 600)
-        let composition = AVMutableComposition()
-        guard let trackA = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid),
-              let trackB = composition.addMutableTrack(withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
-            throw ReelError.trackCreationFailed
-        }
-        let tracks = [trackA, trackB]
-        for i in 0..<n {
-            try tracks[i % 2].insertTimeRange(CMTimeRange(start: .zero, duration: durations[i]),
-                                              of: srcs[i], at: starts[i])
-        }
-
-        var instructions: [AVVideoCompositionInstructionProtocol] = []
-        for i in 0..<n {
-            let passStart = (i == 0) ? .zero : CMTimeAdd(starts[i], T)
-            let passEnd = (i == n - 1) ? total : starts[i + 1]
-            if CMTimeCompare(passEnd, passStart) > 0 {
-                let inst = AVMutableVideoCompositionInstruction()
-                inst.timeRange = CMTimeRange(start: passStart, end: passEnd)
-                let li = AVMutableVideoCompositionLayerInstruction(assetTrack: tracks[i % 2])
-                li.setTransform(preferred, at: .zero)
-                inst.layerInstructions = [li]
-                instructions.append(inst)
-            }
-            if i < n - 1 {
-                let range = CMTimeRange(start: starts[i + 1], end: CMTimeAdd(starts[i + 1], T))
-                let fg = AVMutableVideoCompositionLayerInstruction(assetTrack: tracks[i % 2])
-                fg.setTransform(preferred, at: .zero)
-                fg.setOpacityRamp(fromStartOpacity: 1, toEndOpacity: 0, timeRange: range)
-                let bg = AVMutableVideoCompositionLayerInstruction(assetTrack: tracks[(i + 1) % 2])
-                bg.setTransform(preferred, at: .zero)
-                let inst = AVMutableVideoCompositionInstruction()
-                inst.timeRange = range
-                inst.layerInstructions = [fg, bg]
-                instructions.append(inst)
-            }
-        }
-
-        let vc = AVMutableVideoComposition()
-        vc.renderSize = renderSize
-        vc.frameDuration = CMTime(value: 1, timescale: 30)
-        vc.instructions = instructions
-
-        let out = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cricreel_xf_\(UUID().uuidString.prefix(6)).mp4")
-        try await exportSession(asset: composition, videoComposition: vc, to: out)
-        return out
-    }
-
-    /// Plain single-track concatenation (fallback, no transition, no overlay).
-    nonisolated private static func renderConcat(
-        srcs: [AVAssetTrack], durations: [CMTime], total: CMTime,
-        renderSize: CGSize, preferred: CGAffineTransform) async throws -> URL {
-
-        let composition = AVMutableComposition()
-        guard let track = composition.addMutableTrack(
-            withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
-            throw ReelError.trackCreationFailed
-        }
-        var cursor = CMTime.zero
-        for i in 0..<srcs.count {
-            try track.insertTimeRange(CMTimeRange(start: .zero, duration: durations[i]), of: srcs[i], at: cursor)
-            cursor = CMTimeAdd(cursor, durations[i])
-        }
-        let vc = AVMutableVideoComposition()
-        vc.renderSize = renderSize
-        vc.frameDuration = CMTime(value: 1, timescale: 30)
-        let inst = AVMutableVideoCompositionInstruction()
-        inst.timeRange = CMTimeRange(start: .zero, duration: cursor)
-        let li = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
-        li.setTransform(preferred, at: .zero)
-        inst.layerInstructions = [li]
-        vc.instructions = [inst]
-
-        let out = FileManager.default.temporaryDirectory
-            .appendingPathComponent("cricreel_cat_\(UUID().uuidString.prefix(6)).mp4")
-        try await exportSession(asset: composition, videoComposition: vc, to: out)
-        return out
-    }
-
-    /// Burn the captions onto a base video (single track + Core Animation tool).
-    nonisolated private static func renderOverlay(
-        baseURL: URL, segments: [(start: CMTime, duration: CMTime, clip: ReelClip)],
-        total: CMTime, renderSize: CGSize, outputURL: URL) async throws -> URL {
-
-        let asset = AVURLAsset(url: baseURL)
-        guard let src = try await asset.loadTracks(withMediaType: .video).first else {
-            throw ReelError.noUsableClips
-        }
-        let dur = try await asset.load(.duration)
-        let preferred = try await src.load(.preferredTransform)
-
-        let composition = AVMutableComposition()
-        guard let track = composition.addMutableTrack(
-            withMediaType: .video, preferredTrackID: kCMPersistentTrackID_Invalid) else {
-            throw ReelError.trackCreationFailed
-        }
-        try track.insertTimeRange(CMTimeRange(start: .zero, duration: dur), of: src, at: .zero)
-
+        let total = cursor
         let (parentLayer, videoLayer) = await Self.buildLayers(renderSize: renderSize,
                                                                segments: segments, total: total)
 
-        let vc = AVMutableVideoComposition()
-        vc.renderSize = renderSize
-        vc.frameDuration = CMTime(value: 1, timescale: 30)
-        let inst = AVMutableVideoCompositionInstruction()
-        inst.timeRange = CMTimeRange(start: .zero, duration: dur)
-        let li = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
-        li.setTransform(preferred, at: .zero)
-        inst.layerInstructions = [li]
-        vc.instructions = [inst]
-        vc.animationTool = AVVideoCompositionCoreAnimationTool(
+        let videoComposition = AVMutableVideoComposition()
+        videoComposition.renderSize = renderSize
+        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: total)
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
+        layerInstruction.setTransform(preferred, at: .zero)
+        instruction.layerInstructions = [layerInstruction]
+        videoComposition.instructions = [instruction]
+        videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
             postProcessingAsVideoLayer: videoLayer, in: parentLayer)
 
-        try await exportSession(asset: composition, videoComposition: vc, to: outputURL)
-        return outputURL
-    }
-
-    nonisolated private static func exportSession(
-        asset: AVAsset, videoComposition: AVMutableVideoComposition, to outputURL: URL) async throws {
         try? FileManager.default.removeItem(at: outputURL)
-        guard let session = AVAssetExportSession(
-            asset: asset, presetName: AVAssetExportPresetHighestQuality) else {
+        guard let export = AVAssetExportSession(
+            asset: composition, presetName: AVAssetExportPresetHighestQuality) else {
             throw ReelError.exportSetupFailed
         }
-        session.outputURL = outputURL
-        session.outputFileType = .mp4
-        session.videoComposition = videoComposition
-        session.shouldOptimizeForNetworkUse = true
-        try await withCheckedThrowingContinuation { (cont: CheckedContinuation<Void, Error>) in
-            session.exportAsynchronously {
-                switch session.status {
-                case .completed: cont.resume(returning: ())
-                case .failed, .cancelled: cont.resume(throwing: session.error ?? ReelError.exportFailed)
-                default: cont.resume(throwing: ReelError.exportFailed)
+        export.outputURL = outputURL
+        export.outputFileType = .mp4
+        export.videoComposition = videoComposition
+        export.shouldOptimizeForNetworkUse = true
+
+        return try await withCheckedThrowingContinuation { continuation in
+            export.exportAsynchronously {
+                switch export.status {
+                case .completed: continuation.resume(returning: outputURL)
+                case .failed, .cancelled: continuation.resume(throwing: export.error ?? ReelError.exportFailed)
+                default: continuation.resume(throwing: ReelError.exportFailed)
                 }
             }
         }
