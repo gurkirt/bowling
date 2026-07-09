@@ -11,12 +11,10 @@ import AVFoundation
 import UIKit
 import Combine
 
-/// A clip plus the overlay text to burn onto it.
+/// A clip plus the caption content to burn onto it.
 struct ReelClip {
     let url: URL
-    let line1: String
-    let line2: String
-    let line3: String
+    let info: OverlayInfo
 }
 
 @MainActor
@@ -56,13 +54,21 @@ final class HighlightBuilder: ObservableObject {
         }
     }
 
-    /// Map deliveries (that have an existing clip) to ReelClips with overlay text.
+    /// Map deliveries (that have an existing clip) to ReelClips with caption content.
     func reelClips(from deliveries: [Delivery], match: Match, lookup: PlayerLookup) -> [ReelClip] {
         deliveries.compactMap { d in
             guard let name = d.clipFilename, ClipStore.clipExists(name) else { return nil }
-            let (l1, l2, l3) = DeliveryFormatting.overlayLines(d, match: match, lookup: lookup)
-            return ReelClip(url: ClipStore.url(forClip: name), line1: l1, line2: l2, line3: l3)
+            return ReelClip(url: ClipStore.url(forClip: name),
+                            info: ClipOverlay.info(for: d, match: match, lookup: lookup))
         }
+    }
+
+    /// Export a single clip with the caption burned in, to a temporary file for sharing.
+    /// The stored clip stays raw; the caption is only baked here, on demand.
+    func exportCaptionedClip(_ clip: ReelClip) async -> URL? {
+        let out = FileManager.default.temporaryDirectory
+            .appendingPathComponent("cricreel_share_\(shortID()).mp4")
+        return try? await Self.stitch(clips: [clip], outputURL: out)
     }
 
     // MARK: - Internal
@@ -152,7 +158,7 @@ final class HighlightBuilder: ObservableObject {
         }
     }
 
-    /// Build the parent/video layers plus a timed text overlay for each segment.
+    /// Build the parent/video layers plus a timed lower-third caption per segment.
     @MainActor
     private static func buildLayers(renderSize: CGSize,
                                     segments: [(start: CMTime, duration: CMTime, clip: ReelClip)],
@@ -165,57 +171,122 @@ final class HighlightBuilder: ObservableObject {
 
         let totalSeconds = CMTimeGetSeconds(total)
         for seg in segments {
-            let text = Self.makeTextLayer(seg.clip, renderSize: renderSize)
-            // Origin is bottom-left for the animation tool → place near the top (10–30%).
-            text.frame = CGRect(x: renderSize.width * 0.04, y: renderSize.height * 0.64,
-                                width: renderSize.width * 0.92, height: renderSize.height * 0.24)
-            text.opacity = 0
-            let s = max(0, min(1, CMTimeGetSeconds(seg.start) / totalSeconds))
-            let e = max(s, min(1, (CMTimeGetSeconds(seg.start) + CMTimeGetSeconds(seg.duration)) / totalSeconds))
-            let anim = CAKeyframeAnimation(keyPath: "opacity")
-            // Visible only within [s, e]; keyTimes span the full [0,1] so segments never bleed.
-            anim.values = [0, 0, 1, 1, 0, 0]
-            anim.keyTimes = [0, NSNumber(value: s), NSNumber(value: s),
-                             NSNumber(value: e), NSNumber(value: e), 1]
-            anim.calculationMode = .discrete
-            anim.beginTime = AVCoreAnimationBeginTimeAtZero
-            anim.duration = totalSeconds
-            anim.isRemovedOnCompletion = false
-            anim.fillMode = .both
-            text.add(anim, forKey: "opacity")
-            parentLayer.addSublayer(text)
+            let ss = CMTimeGetSeconds(seg.start)
+            let ee = ss + CMTimeGetSeconds(seg.duration)
+            let card = makeCard(seg.clip.info, renderSize: renderSize,
+                                segStart: ss, segEnd: ee, total: totalSeconds)
+            parentLayer.addSublayer(card)
         }
         return (parentLayer, videoLayer)
     }
 
+    /// A broadcast-style lower-third card that slides in after a short delay, with the
+    /// score flipping from before-this-ball to after-this-ball ~1s in.
     @MainActor
-    private static func makeTextLayer(_ clip: ReelClip, renderSize: CGSize) -> CATextLayer {
+    private static func makeCard(_ info: OverlayInfo, renderSize: CGSize,
+                                 segStart: Double, segEnd: Double, total: Double) -> CALayer {
+        let W = renderSize.width, H = renderSize.height
+        let dur = max(0.01, segEnd - segStart)
+        let cardW = W * 0.92, cardH = H * 0.20
+
+        let card = CALayer()
+        card.frame = CGRect(x: W * 0.04, y: H * 0.08, width: cardW, height: cardH)
+        card.backgroundColor = UIColor.black.withAlphaComponent(0.5).cgColor
+        card.cornerRadius = H * 0.014
+        card.masksToBounds = true
+        card.opacity = 0
+
+        let stripe = CALayer()
+        stripe.frame = CGRect(x: 0, y: 0, width: max(4, W * 0.006), height: cardH)
+        stripe.backgroundColor = info.accent.uiColor.cgColor
+        card.addSublayer(stripe)
+
+        let textX = W * 0.03
+        let textW = cardW - textX - 12
+
+        let outcome = textLayer(info.outcome, size: H * 0.034, weight: .heavy, color: info.accent.uiColor)
+        outcome.frame = CGRect(x: textX, y: cardH * 0.08, width: textW, height: cardH * 0.34)
+        card.addSublayer(outcome)
+
+        let delivery = textLayer(info.delivery, size: H * 0.024, weight: .medium, color: .white)
+        delivery.frame = CGRect(x: textX, y: cardH * 0.40, width: textW, height: cardH * 0.26)
+        card.addSublayer(delivery)
+
+        let scoreFrame = CGRect(x: textX, y: cardH * 0.66, width: textW, height: cardH * 0.30)
+        let scoreBefore = textLayer(info.scoreBefore, size: H * 0.026, weight: .semibold, color: .white)
+        let scoreAfter = textLayer(info.scoreAfter, size: H * 0.026, weight: .semibold, color: .white)
+        scoreBefore.frame = scoreFrame
+        scoreAfter.frame = scoreFrame
+        scoreAfter.opacity = 0
+        card.addSublayer(scoreBefore)
+        card.addSublayer(scoreAfter)
+
+        // Timing (clamped so short clips still animate).
+        let revealAt = segStart + min(0.4, dur * 0.15)
+        let flipAt = min(segStart + 1.0, segStart + dur * 0.6)
+        let slideDur = 0.35
+
+        // Card visibility: revealed at `revealAt`, hidden at segment end.
+        let vis = CAKeyframeAnimation(keyPath: "opacity")
+        vis.values = [0, 0, 1, 1, 0, 0]
+        vis.keyTimes = [0, revealAt / total, revealAt / total, segEnd / total, segEnd / total, 1]
+            .map { NSNumber(value: max(0, min(1, $0))) }
+        vis.calculationMode = .discrete
+        vis.beginTime = AVCoreAnimationBeginTimeAtZero
+        vis.duration = total
+        vis.isRemovedOnCompletion = false
+        vis.fillMode = .both
+        card.add(vis, forKey: "vis")
+
+        // Slide in from the left as it appears.
+        let restX = card.position.x
+        let slide = CABasicAnimation(keyPath: "position.x")
+        slide.fromValue = restX - W * 0.12
+        slide.toValue = restX
+        slide.beginTime = AVCoreAnimationBeginTimeAtZero + revealAt
+        slide.duration = slideDur
+        slide.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        slide.isRemovedOnCompletion = false
+        slide.fillMode = .backwards
+        card.add(slide, forKey: "slide")
+
+        // Score flip: before → after.
+        let fadeOut = CABasicAnimation(keyPath: "opacity")
+        fadeOut.fromValue = 1; fadeOut.toValue = 0
+        fadeOut.beginTime = AVCoreAnimationBeginTimeAtZero + flipAt
+        fadeOut.duration = 0.25
+        fadeOut.isRemovedOnCompletion = false
+        fadeOut.fillMode = .forwards
+        scoreBefore.add(fadeOut, forKey: "flipOut")
+
+        let fadeIn = CABasicAnimation(keyPath: "opacity")
+        fadeIn.fromValue = 0; fadeIn.toValue = 1
+        fadeIn.beginTime = AVCoreAnimationBeginTimeAtZero + flipAt
+        fadeIn.duration = 0.25
+        fadeIn.isRemovedOnCompletion = false
+        fadeIn.fillMode = .forwards
+        scoreAfter.add(fadeIn, forKey: "flipIn")
+
+        return card
+    }
+
+    @MainActor
+    private static func textLayer(_ string: String, size: CGFloat,
+                                  weight: UIFont.Weight, color: UIColor) -> CATextLayer {
         let layer = CATextLayer()
         layer.contentsScale = 2
-        layer.alignmentMode = .center
-        layer.isWrapped = true
+        layer.alignmentMode = .left
+        layer.isWrapped = false
         layer.truncationMode = .end
-        // Dark translucent band for contrast against bright pitches / sky.
-        layer.backgroundColor = UIColor.black.withAlphaComponent(0.38).cgColor
-        layer.cornerRadius = renderSize.height * 0.012
-        layer.masksToBounds = true
-
-        let f1 = UIFont.systemFont(ofSize: renderSize.height * 0.026, weight: .semibold) // scores
-        let f2 = UIFont.systemFont(ofSize: renderSize.height * 0.024, weight: .medium)   // delivery
-        let f3 = UIFont.systemFont(ofSize: renderSize.height * 0.032, weight: .heavy)     // outcome
         let shadow = NSShadow()
         shadow.shadowColor = UIColor.black.withAlphaComponent(0.9)
-        shadow.shadowBlurRadius = 5
+        shadow.shadowBlurRadius = 4
         shadow.shadowOffset = CGSize(width: 0, height: 1)
-
-        func attrs(_ font: UIFont) -> [NSAttributedString.Key: Any] {
-            [.font: font, .foregroundColor: UIColor.white,
-             .strokeColor: UIColor.black, .strokeWidth: -2.5, .shadow: shadow]
-        }
-        let str = NSMutableAttributedString(string: clip.line1 + "\n", attributes: attrs(f1))
-        str.append(NSAttributedString(string: clip.line2 + "\n", attributes: attrs(f2)))
-        str.append(NSAttributedString(string: clip.line3, attributes: attrs(f3)))
-        layer.string = str
+        layer.string = NSAttributedString(string: string, attributes: [
+            .font: UIFont.systemFont(ofSize: size, weight: weight),
+            .foregroundColor: color,
+            .strokeColor: UIColor.black, .strokeWidth: -2.0,
+            .shadow: shadow])
         return layer
     }
 

@@ -91,8 +91,8 @@ struct CommentaryView: View {
             Spacer()
             if hasClip {
                 Button {
-                    let (l1, l2, l3) = DeliveryFormatting.overlayLines(ball, match: match, lookup: lookup)
-                    playing = ClipItem(filename: ball.clipFilename!, line1: l1, line2: l2, line3: l3)
+                    playing = ClipItem(filename: ball.clipFilename!,
+                                       info: ClipOverlay.info(for: ball, match: match, lookup: lookup))
                 } label: {
                     Image(systemName: "play.circle.fill").font(.title2)
                 }
@@ -142,41 +142,49 @@ struct CommentaryView: View {
 
 struct ClipItem: Identifiable {
     let filename: String
-    let line1: String
-    let line2: String
-    let line3: String
+    let info: OverlayInfo
     var id: String { filename }
 }
 
 struct ClipPlayerView: View {
     let item: ClipItem
     @Environment(\.dismiss) private var dismiss
+    @State private var isPreparingShare = false
+    @State private var shareURL: PlayableURL?
 
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
                 VideoPlayer(player: AVPlayer(url: ClipStore.url(forClip: item.filename)))
                     .overlay(alignment: .top) {
-                        VStack(spacing: 3) {
-                            Text(item.line1).font(.subheadline.weight(.semibold))
-                            Text(item.line2).font(.footnote)
-                            Text(item.line3).font(.title3.weight(.heavy))
-                        }
-                        .multilineTextAlignment(.center)
-                        .foregroundStyle(.white)
-                        .padding(.horizontal, 14).padding(.vertical, 8)
-                        .background(.black.opacity(0.38), in: RoundedRectangle(cornerRadius: 12))
-                        .shadow(radius: 5)
-                        .padding(.horizontal, 16)
-                        .padding(.top, geo.size.height * 0.12)
+                        ClipOverlayView(info: item.info)
+                            .padding(.horizontal, 16)
+                            .padding(.top, geo.size.height * 0.10)
                     }
             }
             .ignoresSafeArea(edges: .bottom)
             .navigationTitle("Replay")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { Task { await prepareShare() } } label: {
+                        if isPreparingShare { ProgressView() }
+                        else { Image(systemName: "square.and.arrow.up") }
+                    }
+                    .disabled(isPreparingShare)
+                }
                 ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
+            .sheet(item: $shareURL) { ShareSheet(url: $0.url) }
         }
+    }
+
+    private func prepareShare() async {
+        isPreparingShare = true
+        let clip = ReelClip(url: ClipStore.url(forClip: item.filename), info: item.info)
+        if let url = await HighlightBuilder.shared.exportCaptionedClip(clip) {
+            shareURL = PlayableURL(url: url)
+        }
+        isPreparingShare = false
     }
 }
