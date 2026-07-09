@@ -180,17 +180,17 @@ final class HighlightBuilder: ObservableObject {
         return (parentLayer, videoLayer)
     }
 
-    /// A broadcast-style lower-third card that slides in after a short delay, with the
-    /// score flipping from before-this-ball to after-this-ball ~1s in.
+    /// A caption card near the TOP (matching in-app playback). Score row flips from
+    /// before-this-ball to after-this-ball; only the outcome row animates in.
     @MainActor
     private static func makeCard(_ info: OverlayInfo, renderSize: CGSize,
                                  segStart: Double, segEnd: Double, total: Double) -> CALayer {
         let W = renderSize.width, H = renderSize.height
-        let dur = max(0.01, segEnd - segStart)
         let cardW = W * 0.92, cardH = H * 0.20
 
         let card = CALayer()
-        card.frame = CGRect(x: W * 0.04, y: H * 0.08, width: cardW, height: cardH)
+        // CoreAnimation origin is bottom-left → high y = visually near the top.
+        card.frame = CGRect(x: W * 0.04, y: H * 0.75, width: cardW, height: cardH)
         card.backgroundColor = UIColor.black.withAlphaComponent(0.5).cgColor
         card.cornerRadius = H * 0.014
         card.masksToBounds = true
@@ -204,14 +204,17 @@ final class HighlightBuilder: ObservableObject {
         let textX = W * 0.03
         let textW = cardW - textX - 12
 
+        // Row 3 (outcome) — the only animated row.
         let outcome = textLayer(info.outcome, size: H * 0.034, weight: .heavy, color: info.accent.uiColor)
         outcome.frame = CGRect(x: textX, y: cardH * 0.08, width: textW, height: cardH * 0.34)
         card.addSublayer(outcome)
 
+        // Row 2 (delivery) — static.
         let delivery = textLayer(info.delivery, size: H * 0.024, weight: .medium, color: .white)
         delivery.frame = CGRect(x: textX, y: cardH * 0.40, width: textW, height: cardH * 0.26)
         card.addSublayer(delivery)
 
+        // Row 1 (score) — static position, flips before → after in place.
         let scoreFrame = CGRect(x: textX, y: cardH * 0.66, width: textW, height: cardH * 0.30)
         let scoreBefore = textLayer(info.scoreBefore, size: H * 0.026, weight: .semibold, color: .white)
         let scoreAfter = textLayer(info.scoreAfter, size: H * 0.026, weight: .semibold, color: .white)
@@ -221,53 +224,45 @@ final class HighlightBuilder: ObservableObject {
         card.addSublayer(scoreBefore)
         card.addSublayer(scoreAfter)
 
-        // Timing (clamped so short clips still animate).
-        let revealAt = segStart + min(0.4, dur * 0.15)
-        let flipAt = min(segStart + 1.0, segStart + dur * 0.6)
-        let slideDur = 0.35
+        func n(_ t: Double) -> Double { max(0, min(1, t / total)) }
+        let s = n(segStart), e = n(segEnd)
+        let flip = n(min(segStart + 1.0, segEnd - 0.05))
+        let reveal = n(segStart + 0.35)
 
-        // Card visibility: revealed at `revealAt`, hidden at segment end.
-        let vis = CAKeyframeAnimation(keyPath: "opacity")
-        vis.values = [0, 0, 1, 1, 0, 0]
-        vis.keyTimes = [0, revealAt / total, revealAt / total, segEnd / total, segEnd / total, 1]
-            .map { NSNumber(value: max(0, min(1, $0))) }
-        vis.calculationMode = .discrete
-        vis.beginTime = AVCoreAnimationBeginTimeAtZero
-        vis.duration = total
-        vis.isRemovedOnCompletion = false
-        vis.fillMode = .both
-        card.add(vis, forKey: "vis")
+        // Card visible for the whole segment (hard cut in/out) — reliable in this pipeline.
+        card.add(opacityKeyframe([0, 0, 1, 1, 0, 0], [0, s, s, e, e, 1], total, .discrete), forKey: "vis")
 
-        // Slide in from the left as it appears.
-        let restX = card.position.x
-        let slide = CABasicAnimation(keyPath: "position.x")
-        slide.fromValue = restX - W * 0.12
-        slide.toValue = restX
-        slide.beginTime = AVCoreAnimationBeginTimeAtZero + revealAt
-        slide.duration = slideDur
-        slide.timingFunction = CAMediaTimingFunction(name: .easeOut)
+        // Score flip (same discrete technique as the visibility → reliable).
+        scoreBefore.add(opacityKeyframe([0, 0, 1, 1, 0, 0], [0, s, s, flip, flip, 1], total, .discrete), forKey: "sb")
+        scoreAfter.add(opacityKeyframe([0, 0, 1, 1, 0, 0], [0, flip, flip, e, e, 1], total, .discrete), forKey: "sa")
+
+        // Row 3 entrance: fade + slide in.
+        outcome.add(opacityKeyframe([0, 0, 1, 1, 0, 0], [0, s, reveal, e, e, 1], total, .linear), forKey: "oo")
+        let restX = outcome.position.x
+        let slide = CAKeyframeAnimation(keyPath: "position.x")
+        slide.values = [restX - W * 0.06, restX - W * 0.06, restX, restX]
+        slide.keyTimes = [0, s, reveal, 1].map { NSNumber(value: $0) }
+        slide.calculationMode = .linear
+        slide.beginTime = AVCoreAnimationBeginTimeAtZero
+        slide.duration = total
         slide.isRemovedOnCompletion = false
-        slide.fillMode = .backwards
-        card.add(slide, forKey: "slide")
-
-        // Score flip: before → after.
-        let fadeOut = CABasicAnimation(keyPath: "opacity")
-        fadeOut.fromValue = 1; fadeOut.toValue = 0
-        fadeOut.beginTime = AVCoreAnimationBeginTimeAtZero + flipAt
-        fadeOut.duration = 0.25
-        fadeOut.isRemovedOnCompletion = false
-        fadeOut.fillMode = .forwards
-        scoreBefore.add(fadeOut, forKey: "flipOut")
-
-        let fadeIn = CABasicAnimation(keyPath: "opacity")
-        fadeIn.fromValue = 0; fadeIn.toValue = 1
-        fadeIn.beginTime = AVCoreAnimationBeginTimeAtZero + flipAt
-        fadeIn.duration = 0.25
-        fadeIn.isRemovedOnCompletion = false
-        fadeIn.fillMode = .forwards
-        scoreAfter.add(fadeIn, forKey: "flipIn")
+        slide.fillMode = .both
+        outcome.add(slide, forKey: "os")
 
         return card
+    }
+
+    private static func opacityKeyframe(_ values: [Double], _ keyTimes: [Double],
+                                        _ total: Double, _ mode: CAAnimationCalculationMode) -> CAKeyframeAnimation {
+        let a = CAKeyframeAnimation(keyPath: "opacity")
+        a.values = values
+        a.keyTimes = keyTimes.map { NSNumber(value: max(0, min(1, $0))) }
+        a.calculationMode = mode
+        a.beginTime = AVCoreAnimationBeginTimeAtZero
+        a.duration = total
+        a.isRemovedOnCompletion = false
+        a.fillMode = .both
+        return a
     }
 
     @MainActor

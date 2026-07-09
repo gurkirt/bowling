@@ -178,17 +178,37 @@ struct PlayableURL: Identifiable {
 struct ReelPlayerView: View {
     let url: URL
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var controller = LoopingPlayer()
+
+    private let speeds: [Float] = [1.0, 0.5, 0.25]
 
     var body: some View {
         NavigationStack {
-            VideoPlayer(player: AVPlayer(url: url))
+            VideoPlayer(player: controller.player)
                 .ignoresSafeArea(edges: .bottom)
                 .navigationTitle("Reel")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
-                    ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
-                    ToolbarItem(placement: .topBarLeading) { ShareLink(item: url) }
+                    ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            ForEach(speeds, id: \.self) { sp in
+                                Button { controller.setRate(sp) } label: {
+                                    Label(speedLabel(sp), systemImage: controller.rate == sp ? "checkmark" : "")
+                                }
+                            }
+                        } label: {
+                            Label(speedLabel(controller.rate), systemImage: "speedometer")
+                        }
+                    }
+                    ToolbarItem(placement: .topBarTrailing) { ShareLink(item: url) }
                 }
+                .onAppear { controller.start(url: url) }
+                .onDisappear { controller.stop() }
         }
+    }
+
+    private func speedLabel(_ sp: Float) -> String {
+        sp == 1.0 ? "1×" : (sp == 0.5 ? "0.5×" : "0.25×")
     }
 }

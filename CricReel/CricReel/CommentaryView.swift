@@ -9,6 +9,7 @@
 import SwiftUI
 import SwiftData
 import AVKit
+import AVFoundation
 
 struct CommentaryView: View {
     @Bindable var match: Match
@@ -146,37 +147,88 @@ struct ClipItem: Identifiable {
     var id: String { filename }
 }
 
+/// AVPlayer wrapper that autoplays, loops, and supports slow-motion playback.
+final class LoopingPlayer: ObservableObject {
+    let player = AVPlayer()
+    @Published private(set) var rate: Float = 1.0
+    private var endObserver: NSObjectProtocol?
+
+    func start(url: URL) {
+        let playerItem = AVPlayerItem(url: url)
+        player.replaceCurrentItem(with: playerItem)
+        player.actionAtItemEnd = .none
+        endObserver = NotificationCenter.default.addObserver(
+            forName: .AVPlayerItemDidPlayToEndTime, object: playerItem, queue: .main) { [weak self] _ in
+            guard let self else { return }
+            self.player.seek(to: .zero)
+            self.player.playImmediately(atRate: self.rate)
+        }
+        player.playImmediately(atRate: rate)
+    }
+
+    func setRate(_ r: Float) {
+        rate = r
+        player.playImmediately(atRate: r)
+    }
+
+    func stop() {
+        player.pause()
+        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        endObserver = nil
+    }
+}
+
 struct ClipPlayerView: View {
     let item: ClipItem
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var controller = LoopingPlayer()
     @State private var isPreparingShare = false
     @State private var shareURL: PlayableURL?
+
+    private let speeds: [Float] = [1.0, 0.5, 0.25]
 
     var body: some View {
         NavigationStack {
             GeometryReader { geo in
-                VideoPlayer(player: AVPlayer(url: ClipStore.url(forClip: item.filename)))
+                VideoPlayer(player: controller.player)
                     .overlay(alignment: .top) {
                         ClipOverlayView(info: item.info)
                             .padding(.horizontal, 16)
-                            .padding(.top, geo.size.height * 0.10)
+                            .padding(.top, geo.size.height * 0.04)
                     }
             }
             .ignoresSafeArea(edges: .bottom)
             .navigationTitle("Replay")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarLeading) { Button("Done") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        ForEach(speeds, id: \.self) { sp in
+                            Button { controller.setRate(sp) } label: {
+                                Label(speedLabel(sp), systemImage: controller.rate == sp ? "checkmark" : "")
+                            }
+                        }
+                    } label: {
+                        Label(speedLabel(controller.rate), systemImage: "speedometer")
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { Task { await prepareShare() } } label: {
                         if isPreparingShare { ProgressView() }
                         else { Image(systemName: "square.and.arrow.up") }
                     }
                     .disabled(isPreparingShare)
                 }
-                ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } }
             }
             .sheet(item: $shareURL) { ShareSheet(url: $0.url) }
+            .onAppear { controller.start(url: ClipStore.url(forClip: item.filename)) }
+            .onDisappear { controller.stop() }
         }
+    }
+
+    private func speedLabel(_ sp: Float) -> String {
+        sp == 1.0 ? "1×" : (sp == 0.5 ? "0.5×" : "0.25×")
     }
 
     private func prepareShare() async {
