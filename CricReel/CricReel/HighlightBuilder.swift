@@ -186,38 +186,38 @@ final class HighlightBuilder: ObservableObject {
     private static func makeCard(_ info: OverlayInfo, renderSize: CGSize,
                                  segStart: Double, segEnd: Double, total: Double) -> CALayer {
         let W = renderSize.width, H = renderSize.height
-        let cardW = W * 0.92, cardH = H * 0.20
+        let cardW = W * 0.66, cardH = H * 0.155
+        let cardX = (W - cardW) / 2
 
         let card = CALayer()
-        // CoreAnimation origin is bottom-left → high y = visually near the top.
-        card.frame = CGRect(x: W * 0.04, y: H * 0.75, width: cardW, height: cardH)
+        // CoreAnimation origin is bottom-left → high y = visually near the top; centered.
+        card.frame = CGRect(x: cardX, y: H * 0.80, width: cardW, height: cardH)
         card.backgroundColor = UIColor.black.withAlphaComponent(0.5).cgColor
-        card.cornerRadius = H * 0.014
+        card.cornerRadius = H * 0.012
         card.masksToBounds = true
         card.opacity = 0
 
-        let stripe = CALayer()
-        stripe.frame = CGRect(x: 0, y: 0, width: max(4, W * 0.006), height: cardH)
-        stripe.backgroundColor = info.accent.uiColor.cgColor
-        card.addSublayer(stripe)
-
-        let textX = W * 0.03
-        let textW = cardW - textX - 12
+        let textX: CGFloat = 10
+        let textW = cardW - 20
 
         // Row 3 (outcome) — the only animated row.
-        let outcome = textLayer(info.outcome, size: H * 0.034, weight: .heavy, color: info.accent.uiColor)
-        outcome.frame = CGRect(x: textX, y: cardH * 0.08, width: textW, height: cardH * 0.34)
+        let outcome = textLayer(info.outcome, size: H * 0.030, weight: .heavy, color: info.accent.uiColor)
+        outcome.alignmentMode = .center
+        outcome.frame = CGRect(x: textX, y: cardH * 0.06, width: textW, height: cardH * 0.36)
         card.addSublayer(outcome)
 
         // Row 2 (delivery) — static.
-        let delivery = textLayer(info.delivery, size: H * 0.024, weight: .medium, color: .white)
-        delivery.frame = CGRect(x: textX, y: cardH * 0.40, width: textW, height: cardH * 0.26)
+        let delivery = textLayer(info.delivery, size: H * 0.022, weight: .medium, color: .white)
+        delivery.alignmentMode = .center
+        delivery.frame = CGRect(x: textX, y: cardH * 0.42, width: textW, height: cardH * 0.24)
         card.addSublayer(delivery)
 
         // Row 1 (score) — static position, flips before → after in place.
         let scoreFrame = CGRect(x: textX, y: cardH * 0.66, width: textW, height: cardH * 0.30)
-        let scoreBefore = textLayer(info.scoreBefore, size: H * 0.026, weight: .semibold, color: .white)
-        let scoreAfter = textLayer(info.scoreAfter, size: H * 0.026, weight: .semibold, color: .white)
+        let scoreBefore = textLayer(info.scoreBefore, size: H * 0.024, weight: .semibold, color: .white)
+        let scoreAfter = textLayer(info.scoreAfter, size: H * 0.024, weight: .semibold, color: .white)
+        scoreBefore.alignmentMode = .center
+        scoreAfter.alignmentMode = .center
         scoreBefore.frame = scoreFrame
         scoreAfter.frame = scoreFrame
         scoreAfter.opacity = 0
@@ -240,7 +240,7 @@ final class HighlightBuilder: ObservableObject {
         outcome.add(opacityKeyframe([0, 0, 1, 1, 0, 0], [0, s, reveal, e, e, 1], total, .linear), forKey: "oo")
         let restX = outcome.position.x
         let slide = CAKeyframeAnimation(keyPath: "position.x")
-        slide.values = [restX - W * 0.06, restX - W * 0.06, restX, restX]
+        slide.values = [restX - cardW * 0.10, restX - cardW * 0.10, restX, restX]
         slide.keyTimes = [0, s, reveal, 1].map { NSNumber(value: $0) }
         slide.calculationMode = .linear
         slide.beginTime = AVCoreAnimationBeginTimeAtZero
