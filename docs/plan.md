@@ -114,8 +114,7 @@ Let's keep it as it now, I have few more things to correct in the App
 
 2. Next over should directly take to screen to select the next bowler, and next bowler can not be the same as bowler who just finished the over so selction list should only contain other bowlers. Also have an option to limit the maximum number of over a bowler can bowl in match creation screen and minmum number of bowlers. So use this info show list of selectable bowlers who still have quote of over left. 
 
-3. Main scoreboard still look bit off; Header is not aligned with rest of table, header is still smaller compared to table numbers. Also top of scoreboard should contain two rows with score of each team and another line below mentioning who won by what or who won the toss and decieded to bat/bowl first. 
-
+3. 
 4. Main score looks much better, if pressed manual then we should now see preview but only switch to switch to auto delevey detection
 
 5. Make the size all three button on main screen of the same size for undo, swap strike, Bowler. Few minor things: swap strike shoel only contain strike not swap as we have icon for swap; and Bowler Icon is Wrong, it is using better icon. Same batter icon being used for bowlers and batter have no Icon. 

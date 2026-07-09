@@ -5,12 +5,32 @@
 //  Persisted recording + detection settings (UserDefaults), shared across the app.
 //
 
-import Foundation
+import SwiftUI
 import Combine
+
+enum AppAppearance: String, CaseIterable, Identifiable {
+    case system, light, dark
+    var id: String { rawValue }
+    var label: String {
+        switch self {
+        case .system: return "System"
+        case .light:  return "Light"
+        case .dark:   return "Dark"
+        }
+    }
+    var colorScheme: ColorScheme? {
+        switch self {
+        case .system: return nil
+        case .light:  return .light
+        case .dark:   return .dark
+        }
+    }
+}
 
 final class SettingsStore: ObservableObject {
     static let shared = SettingsStore()
 
+    @Published var appearance: AppAppearance { didSet { persist() } }
     @Published var resolution: VideoResolution { didSet { persist() } }
     @Published var frameRate: FrameRateOption { didSet { persist() } }
     @Published var preTriggerDuration: Double { didSet { persist() } }
@@ -25,6 +45,7 @@ final class SettingsStore: ObservableObject {
     private let d = UserDefaults.standard
 
     private init() {
+        appearance = AppAppearance(rawValue: d.string(forKey: "appearance") ?? "") ?? .system
         resolution = VideoResolution(rawValue: d.string(forKey: "res") ?? "") ?? .hd1080
         frameRate = FrameRateOption(rawValue: d.string(forKey: "fps") ?? "") ?? .fps30
         preTriggerDuration = d.object(forKey: "pre") as? Double ?? 1.0
@@ -36,6 +57,7 @@ final class SettingsStore: ObservableObject {
     }
 
     private func persist() {
+        d.set(appearance.rawValue, forKey: "appearance")
         d.set(resolution.rawValue, forKey: "res")
         d.set(frameRate.rawValue, forKey: "fps")
         d.set(preTriggerDuration, forKey: "pre")

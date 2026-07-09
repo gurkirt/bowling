@@ -8,6 +8,8 @@
 import SwiftUI
 
 struct AppRootView: View {
+    @ObservedObject private var settings = SettingsStore.shared
+
     var body: some View {
         TabView {
             MatchListView()
@@ -21,5 +23,6 @@ struct AppRootView: View {
             SettingsView()
                 .tabItem { Label("Settings", systemImage: "gearshape") }
         }
+        .preferredColorScheme(settings.appearance.colorScheme)
     }
 }

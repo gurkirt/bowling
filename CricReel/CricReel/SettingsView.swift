@@ -13,6 +13,13 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Appearance") {
+                    Picker("Theme", selection: $settings.appearance) {
+                        ForEach(AppAppearance.allCases) { Text($0.label).tag($0) }
+                    }
+                    .pickerStyle(.segmented)
+                }
+
                 Section("Recording") {
                     Picker("Resolution", selection: $settings.resolution) {
                         ForEach(VideoResolution.allCases) { Text($0.displayName).tag($0) }
