@@ -96,6 +96,18 @@ enum DismissalType: String, Codable, CaseIterable, Identifiable {
     var asksStrike: Bool {
         self == .runOut || self == .other
     }
+
+    /// Dismissals that are legally possible on the given delivery type.
+    /// Wide: stumped, run out and hit wicket remain live. No-ball: only run out
+    /// (plus rarities covered by "Other"). Byes/leg-byes: run out.
+    static func valid(on extra: ExtraType) -> [DismissalType] {
+        switch extra {
+        case .none:         return DismissalType.allCases
+        case .wide:         return [.runOut, .stumped, .hitWicket, .other]
+        case .noBall:       return [.runOut, .other]
+        case .bye, .legBye: return [.runOut, .other]
+        }
+    }
 }
 
 enum HighlightTag: String, Codable, CaseIterable, Identifiable {

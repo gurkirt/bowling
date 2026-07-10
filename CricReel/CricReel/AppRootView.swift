@@ -13,7 +13,7 @@ struct AppRootView: View {
     var body: some View {
         TabView {
             MatchListView()
-                .tabItem { Label("Matches", systemImage: "sportscourt") }
+                .tabItem { Label("Matches", systemImage: "figure.cricket") }
             PlayerStatsView()
                 .tabItem { Label("Journeys", systemImage: "chart.bar") }
             PlayerPoolView()

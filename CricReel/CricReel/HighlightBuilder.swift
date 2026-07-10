@@ -121,6 +121,17 @@ final class HighlightBuilder: ObservableObject {
         guard cursor > .zero else { throw ReelError.noUsableClips }
         videoTrack.preferredTransform = preferred
 
+        // Reels are for sharing: cap the export at HD (1080 short side) and 30 fps.
+        // 4K source clips are scaled down; HD clips pass through unchanged.
+        let downScale = min(1.0,
+                            1080.0 / min(renderSize.width, renderSize.height),
+                            1920.0 / max(renderSize.width, renderSize.height))
+        if downScale < 1.0 {
+            let even = { (v: CGFloat) in (v / 2).rounded(.down) * 2 }
+            renderSize = CGSize(width: even(renderSize.width * downScale),
+                                height: even(renderSize.height * downScale))
+        }
+
         let total = cursor
         let (parentLayer, videoLayer) = await Self.buildLayers(renderSize: renderSize,
                                                                segments: segments, total: total)
@@ -131,7 +142,8 @@ final class HighlightBuilder: ObservableObject {
         let instruction = AVMutableVideoCompositionInstruction()
         instruction.timeRange = CMTimeRange(start: .zero, duration: total)
         let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: videoTrack)
-        layerInstruction.setTransform(preferred, at: .zero)
+        layerInstruction.setTransform(
+            preferred.concatenating(CGAffineTransform(scaleX: downScale, y: downScale)), at: .zero)
         instruction.layerInstructions = [layerInstruction]
         videoComposition.instructions = [instruction]
         videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
@@ -192,10 +204,16 @@ final class HighlightBuilder: ObservableObject {
         let card = CALayer()
         // CoreAnimation origin is bottom-left → high y = visually near the top; centered.
         card.frame = CGRect(x: cardX, y: H * 0.80, width: cardW, height: cardH)
-        card.backgroundColor = UIColor.black.withAlphaComponent(0.5).cgColor
+        card.backgroundColor = UIColor.black.withAlphaComponent(0.55).cgColor
         card.cornerRadius = H * 0.012
         card.masksToBounds = true
         card.opacity = 0
+
+        // Accent bar down the left edge — colour-codes fours/sixes/wickets like the app UI.
+        let accentBar = CALayer()
+        accentBar.frame = CGRect(x: 0, y: 0, width: max(3, cardW * 0.012), height: cardH)
+        accentBar.backgroundColor = info.accent.uiColor.cgColor
+        card.addSublayer(accentBar)
 
         let textX: CGFloat = 10
         let textW = cardW - 20

@@ -2,8 +2,8 @@
 //  CameraManager.swift
 //  CriClips
 //
-//  Configures the back wide-angle camera via AVCaptureSession (1080p, 30/60 fps),
-//  requests permission, and streams BGRA frames through a frameHandler callback.
+//  Configures the back wide-angle camera via AVCaptureSession (1080p/4K, 30/60 fps),
+//  requests permission, and streams 4:2:0 YUV frames through a frameHandler callback.
 //
 
 import AVFoundation
@@ -100,8 +100,11 @@ class CameraManager: NSObject, ObservableObject {
             }
 
             self.videoOutput.setSampleBufferDelegate(self, queue: self.outputQueue)
+            // 4:2:0 YUV is 1.5 bytes/pixel vs BGRA's 4 — the pre-trigger ring costs
+            // ~2.7× less memory and the H.264 encoder ingests it without conversion.
+            // CIImage (model preprocessing + previews) reads it natively.
             self.videoOutput.videoSettings = [
-                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_32BGRA
+                kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
             ]
             self.videoOutput.alwaysDiscardsLateVideoFrames = true
 

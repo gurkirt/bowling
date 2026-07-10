@@ -38,7 +38,13 @@ enum DeliveryFormatting {
 
     /// Short badge for the this-over strip and ball-by-ball list ("4", "6", "W", "1", "•", "Wd").
     static func badge(_ d: Delivery) -> String {
-        if d.isWicket { return "W" }
+        if d.isWicket {
+            switch d.extraType {
+            case .wide:   return "WdW"
+            case .noBall: return "NbW"
+            default:      return "W"
+            }
+        }
         switch d.extraType {
         case .none:   return d.runsOffBat == 0 ? "•" : "\(d.runsOffBat)"
         case .wide:   return d.physicalRuns > 0 ? "Wd\(d.physicalRuns)" : "Wd"
@@ -52,7 +58,12 @@ enum DeliveryFormatting {
     /// the dismissal type (no "OUT" prefix).
     static func outcome(_ d: Delivery) -> String {
         if d.isWicket {
-            return d.dismissalType?.displayName ?? "Wicket"
+            let how = d.dismissalType?.displayName ?? "Wicket"
+            switch d.extraType {
+            case .wide:   return "\(how) (Wide)"
+            case .noBall: return "\(how) (No Ball)"
+            default:      return how
+            }
         }
         switch d.extraType {
         case .wide:   return "Wide" + (d.physicalRuns > 0 ? " +\(d.physicalRuns)" : "")

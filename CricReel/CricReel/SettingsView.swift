@@ -20,12 +20,21 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                 }
 
-                Section("Recording") {
-                    Picker("Resolution", selection: $settings.resolution) {
-                        ForEach(VideoResolution.allCases) { Text($0.displayName).tag($0) }
+                Section(header: Text("Recording"),
+                        footer: Text("Detection always runs at 30 fps to save battery — higher frame rates only affect the recorded clips.")) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Resolution").font(.subheadline).foregroundStyle(.secondary)
+                        Picker("Resolution", selection: $settings.resolution) {
+                            ForEach(VideoResolution.allCases) { Text($0.displayName).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
                     }
-                    Picker("Frame rate", selection: $settings.frameRate) {
-                        ForEach(FrameRateOption.allCases) { Text($0.displayName).tag($0) }
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Frame rate").font(.subheadline).foregroundStyle(.secondary)
+                        Picker("Frame rate", selection: $settings.frameRate) {
+                            ForEach(FrameRateOption.allCases) { Text($0.displayName).tag($0) }
+                        }
+                        .pickerStyle(.segmented)
                     }
                 }
 

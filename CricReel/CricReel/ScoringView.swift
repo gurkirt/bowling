@@ -188,7 +188,7 @@ struct ScoringView: View {
     private var detectionStatus: some View {
         Group {
             if selectedBowlerID == nil {
-                Label("Select a bowler to arm detection", systemImage: "baseball")
+                Label("Select a bowler to arm detection", systemImage: "cricket.ball")
             } else if videoWriter.isRecording {
                 Label("Recording delivery…", systemImage: "record.circle").foregroundStyle(.red)
             } else if videoWriter.isCoolingDown {
@@ -220,7 +220,7 @@ struct ScoringView: View {
                     .disabled(innings.deliveries.isEmpty)
                 equalButton("Strike", systemImage: "arrow.left.arrow.right") { swapStrike(innings) }
                     .disabled(innings.deliveries.isEmpty)
-                equalButton("Bowler", systemImage: "baseball") { showingBowlerPicker = true }
+                equalButton("Bowler", systemImage: "cricket.ball") { showingBowlerPicker = true }
             }
 
             thisOverStrip(innings, state: state)
@@ -272,7 +272,7 @@ struct ScoringView: View {
                  : "Over complete. Select the next bowler.")
                 .multilineTextAlignment(.center).foregroundStyle(.secondary)
             Button { showingBowlerPicker = true } label: {
-                Label("Select Bowler", systemImage: "baseball").frame(maxWidth: .infinity)
+                Label("Select Bowler", systemImage: "cricket.ball").frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent).controlSize(.large)
             if !innings.deliveries.isEmpty {

@@ -11,9 +11,15 @@ import SwiftUI
 struct ScoringPad: View {
     /// (extra, padRuns) — extra is `.none` for a normal delivery.
     var onScore: (ExtraType, Int) -> Void
-    var onWicket: (DismissalType) -> Void
+    /// (extra, dismissal) — extra is the armed modifier, so run-outs/stumpings on
+    /// wides and no-balls are scored as such.
+    var onWicket: (ExtraType, DismissalType) -> Void
 
     @State private var armedExtra: ExtraType?
+
+    private var validWickets: Set<DismissalType> {
+        Set(DismissalType.valid(on: armedExtra ?? .none))
+    }
 
     private let runs = [0, 1, 2, 3, 4, 5, 6]
     private let runColumns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)
@@ -24,7 +30,7 @@ struct ScoringPad: View {
             VStack(spacing: 10) {
                 extrasRow
                 if let armed = armedExtra {
-                    Text("\(armed.displayName) selected — tap the runs taken (0 if none)")
+                    Text("\(armed.displayName) selected — tap the runs taken (0 if none), or a wicket that can fall on a \(armed.displayName.lowercased())")
                         .font(.caption).foregroundStyle(.orange)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
@@ -35,11 +41,14 @@ struct ScoringPad: View {
                 Text("WICKET").font(.caption).foregroundStyle(.secondary)
                 LazyVGrid(columns: outColumns, spacing: 8) {
                     ForEach(DismissalType.allCases) { type in
-                        Button { onWicket(type) } label: {
+                        let valid = validWickets.contains(type)
+                        Button { onWicket(armedExtra ?? .none, type) } label: {
                             Text(type.displayName).font(.subheadline.bold())
                                 .frame(maxWidth: .infinity, minHeight: 46)
                         }
                         .buttonStyle(PadButtonStyle(fill: Color.red.opacity(0.14), fg: .red))
+                        .disabled(!valid)
+                        .opacity(valid ? 1 : 0.3)
                     }
                 }
             }

@@ -1,11 +1,13 @@
 //
 //  VideoWriter.swift
-//  CriClips
+//  CricReel
 //
-//  Maintains a pre-trigger ring buffer of pixel frames.  On a trigger it stitches
-//  pre-trigger frames + post-trigger frames into a single H.264 .mp4 written to
-//  the Documents directory.  After writing completes a cooldown timer must expire
-//  and the pre-trigger buffer must refill before the next trigger is armed.
+//  Maintains a pre-trigger ring buffer of pixel frames.  On a trigger it opens an
+//  AVAssetWriter immediately, drains the pre-trigger frames into the hardware H.264
+//  encoder, then streams every post-trigger frame straight from the camera into the
+//  encoder — nothing is buffered in memory, so post-trigger duration is unbounded.
+//  After writing completes a cooldown timer must expire and the pre-trigger buffer
+//  must refill before the next trigger is armed.
 //
 
 import AVFoundation
@@ -29,21 +31,29 @@ class VideoWriter: ObservableObject {
     private var preTriggerTarget: Int { config.preTriggerFrameCount }
     private var postTriggerTarget: Int { config.postTriggerFrameCount }
 
+    /// Writer lifecycle. All transitions happen on writingQueue.
+    private enum State {
+        case buffering      // filling the pre-trigger ring, waiting for a trigger
+        case streamingPost  // writer open, camera frames go straight to the encoder
+        case finishing      // markAsFinished called, waiting for finishWriting
+    }
+    private var state: State = .buffering
+
     private var assetWriter: AVAssetWriter?
     private var videoInput: AVAssetWriterInput?
     private var adaptor: AVAssetWriterInputPixelBufferAdaptor?
-    private let writingQueue = DispatchQueue(label: "criclips.video.write", qos: .userInitiated)
+    private var currentClipURL: URL?
+    private let writingQueue = DispatchQueue(label: "cricreel.video.write", qos: .userInitiated)
 
     private var pixelBufferPool: CVPixelBufferPool?
     private var videoWidth = 1920
     private var videoHeight = 1080
-    private var pixelFormat: OSType = kCVPixelFormatType_32BGRA
+    private var pixelFormat: OSType = kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange
 
     private var preTriggerBuffer: [BufferedFrame] = []
-    private var postTriggerBuffer: [BufferedFrame] = []
-    private var isWriting = false
-    private var isCollectingPost = false
-    private var postCollectedCount = 0
+    private var nextPTS: CMTime = .zero
+    private var writtenFrameCount = 0
+    private var postFrameCount = 0
 
     // Cooldown: frames are buffered, but trigger is locked until cooldownEndTime has passed.
     private var cooldownEndTime: Date = .distantPast
@@ -80,7 +90,7 @@ class VideoWriter: ObservableObject {
     func triggerRecording() {
         writingQueue.async { [weak self] in
             guard let self else { return }
-            guard !self.isWriting, !self.isCollectingPost else { return }
+            guard self.state == .buffering else { return }
             guard self.isReadyForTrigger else { return }
             guard self.preTriggerBuffer.count >= self.preTriggerTarget else { return }
 
@@ -88,9 +98,7 @@ class VideoWriter: ObservableObject {
                 self.isReadyForTrigger = false
                 self.isRecording = true
             }
-            self.isCollectingPost = true
-            self.postTriggerBuffer.removeAll()
-            self.postCollectedCount = 0
+            self.startClip()
         }
     }
 
@@ -99,34 +107,37 @@ class VideoWriter: ObservableObject {
     func addFrame(_ sampleBuffer: CMSampleBuffer) {
         writingQueue.async { [weak self] in
             guard let self else { return }
-            guard !self.isWriting else { return }
-
             guard let src = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
-            let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
 
-            // Initialise pool on first frame
-            if self.pixelBufferPool == nil {
-                let w = CVPixelBufferGetWidth(src)
-                let h = CVPixelBufferGetHeight(src)
-                let fmt = CVPixelBufferGetPixelFormatType(src)
-                self.videoWidth  = w
-                self.videoHeight = h
-                self.pixelFormat = fmt
-                guard self.createPool(width: w, height: h, format: fmt) else { return }
-            }
+            switch self.state {
+            case .finishing:
+                return
 
-            guard let copy = self.copyPixelBuffer(src) else { return }
-            let frame = BufferedFrame(pixelBuffer: copy, timestamp: ts)
-
-            if self.isCollectingPost {
-                self.postTriggerBuffer.append(frame)
-                self.postCollectedCount += 1
-                if self.postCollectedCount >= self.postTriggerTarget {
-                    self.isCollectingPost = false
-                    self.writeClip()
+            case .streamingPost:
+                // Feed the camera's buffer straight to the encoder — no copy, no buffering.
+                // The adaptor retains it only until the hardware encoder consumes it.
+                self.appendFrame(src)
+                self.postFrameCount += 1
+                if self.postFrameCount >= self.postTriggerTarget {
+                    self.finishClip()
                 }
-            } else {
-                self.preTriggerBuffer.append(frame)
+
+            case .buffering:
+                let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+
+                // Initialise pool on first frame
+                if self.pixelBufferPool == nil {
+                    let w = CVPixelBufferGetWidth(src)
+                    let h = CVPixelBufferGetHeight(src)
+                    let fmt = CVPixelBufferGetPixelFormatType(src)
+                    self.videoWidth  = w
+                    self.videoHeight = h
+                    self.pixelFormat = fmt
+                    guard self.createPool(width: w, height: h, format: fmt) else { return }
+                }
+
+                guard let copy = self.copyPixelBuffer(src) else { return }
+                self.preTriggerBuffer.append(BufferedFrame(pixelBuffer: copy, timestamp: ts))
                 if self.preTriggerBuffer.count > self.preTriggerTarget {
                     self.preTriggerBuffer.removeFirst()
                 }
@@ -144,10 +155,9 @@ class VideoWriter: ObservableObject {
 
     // MARK: - Video Writing
 
-    private func writeClip() {
-        isWriting = true
-        let allFrames = preTriggerBuffer + postTriggerBuffer
-
+    /// Opens the asset writer and drains the pre-trigger ring into the encoder.
+    /// Runs on writingQueue.
+    private func startClip() {
         let fmt = DateFormatter()
         fmt.dateFormat = "yyyy-MM-dd_HH-mm-ss"
         let name = "criclip_\(fmt.string(from: Date())).mp4"
@@ -156,70 +166,122 @@ class VideoWriter: ObservableObject {
             .appendingPathComponent(name)
 
         do {
-            assetWriter = try AVAssetWriter(outputURL: outURL, fileType: .mp4)
+            let writer = try AVAssetWriter(outputURL: outURL, fileType: .mp4)
 
+            let fps = Int(config.frameRate.value)
             let videoSettings: [String: Any] = [
                 AVVideoCodecKey: AVVideoCodecType.h264,
                 AVVideoWidthKey: videoWidth,
                 AVVideoHeightKey: videoHeight,
-                AVVideoCompressionPropertiesKey: [AVVideoAverageBitRateKey: targetBitRate()]
+                AVVideoCompressionPropertiesKey: [
+                    AVVideoAverageBitRateKey: targetBitRate(),
+                    AVVideoExpectedSourceFrameRateKey: fps,
+                    AVVideoMaxKeyFrameIntervalKey: fps * 2,
+                    AVVideoProfileLevelKey: AVVideoProfileLevelH264HighAutoLevel
+                ]
             ]
 
-            videoInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
-            videoInput?.expectsMediaDataInRealTime = false
-            videoInput?.transform = .identity   // pixel data is already portrait (videoRotationAngle=90 rotates it)
+            let input = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
+            // Realtime mode: the encoder paces itself to keep isReadyForMoreMediaData true
+            // while we stream live post-trigger frames into it.
+            input.expectsMediaDataInRealTime = true
+            input.transform = .identity   // pixel data is already portrait (videoRotationAngle=90 rotates it)
 
             let adaptor = AVAssetWriterInputPixelBufferAdaptor(
-                assetWriterInput: videoInput!,
+                assetWriterInput: input,
                 sourcePixelBufferAttributes: [
                     kCVPixelBufferPixelFormatTypeKey as String: pixelFormat,
                     kCVPixelBufferWidthKey  as String: videoWidth,
                     kCVPixelBufferHeightKey as String: videoHeight
                 ])
-            self.adaptor = adaptor
 
-            guard assetWriter!.canAdd(videoInput!) else { failWrite("Cannot add video input"); return }
-            assetWriter!.add(videoInput!)
-            guard assetWriter!.startWriting() else {
-                failWrite(assetWriter?.error?.localizedDescription ?? "startWriting failed")
+            guard writer.canAdd(input) else { failWrite("Cannot add video input"); return }
+            writer.add(input)
+            guard writer.startWriting() else {
+                failWrite(writer.error?.localizedDescription ?? "startWriting failed")
                 return
             }
+            writer.startSession(atSourceTime: .zero)
 
-            assetWriter!.startSession(atSourceTime: .zero)
-            let tpf = config.frameRate.frameDuration
-            var t = CMTime.zero
-            var written = 0
+            self.assetWriter = writer
+            self.videoInput = input
+            self.adaptor = adaptor
+            self.currentClipURL = outURL
+            self.nextPTS = .zero
+            self.writtenFrameCount = 0
+            self.postFrameCount = 0
 
-            for frame in allFrames {
-                while videoInput?.isReadyForMoreMediaData == false {
-                    Thread.sleep(forTimeInterval: 0.001)
-                }
-                if adaptor.append(frame.pixelBuffer, withPresentationTime: t) {
-                    written += 1
-                }
-                t = CMTimeAdd(t, tpf)
+            // Drain the pre-trigger ring into the encoder, releasing each frame as we go
+            // so its pool buffer is recycled immediately.
+            while !preTriggerBuffer.isEmpty {
+                let frame = preTriggerBuffer.removeFirst()
+                appendFrame(frame.pixelBuffer)
             }
-            videoInput!.markAsFinished()
 
-            assetWriter!.finishWriting { [weak self] in
-                guard let self else { return }
-                let err = self.assetWriter?.error
-                self.isWriting = false
-                if let err {
-                    print("❌ [CriClips] VideoWriter: \(err)")
-                    DispatchQueue.main.async { self.lastError = err.localizedDescription }
-                } else {
-                    print("✅ [CriClips] Saved \(name) (\(written) frames)")
-                    DispatchQueue.main.async {
-                        self.lastSavedURL = outURL
-                        NotificationCenter.default.post(name: .newClipSaved, object: outURL)
-                    }
-                }
-                self.beginCooldown()
-            }
+            state = .streamingPost
 
         } catch {
             failWrite(error.localizedDescription)
+        }
+    }
+
+    /// Appends one pixel buffer at the next fixed-rate timestamp. Runs on writingQueue.
+    @discardableResult
+    private func appendFrame(_ pixelBuffer: CVPixelBuffer) -> Bool {
+        guard let input = videoInput, let adaptor else { return false }
+
+        // With expectsMediaDataInRealTime the input should stay ready; give the
+        // encoder a short window before dropping the frame rather than stalling
+        // the queue (and the camera) indefinitely.
+        var waitedMs = 0
+        while !input.isReadyForMoreMediaData && waitedMs < 100 {
+            Thread.sleep(forTimeInterval: 0.001)
+            waitedMs += 1
+        }
+        guard input.isReadyForMoreMediaData else { return false }
+
+        guard adaptor.append(pixelBuffer, withPresentationTime: nextPTS) else { return false }
+        nextPTS = CMTimeAdd(nextPTS, config.frameRate.frameDuration)
+        writtenFrameCount += 1
+        return true
+    }
+
+    /// Closes the writer once the post-trigger frame budget is reached. Runs on writingQueue.
+    private func finishClip() {
+        guard let writer = assetWriter, let input = videoInput else {
+            state = .buffering
+            beginCooldown()
+            return
+        }
+        state = .finishing
+        input.markAsFinished()
+
+        let written = writtenFrameCount
+        let outURL = currentClipURL
+
+        writer.finishWriting { [weak self] in
+            guard let self else { return }
+            let err = writer.error
+
+            self.writingQueue.async {
+                self.assetWriter = nil
+                self.videoInput = nil
+                self.adaptor = nil
+                self.currentClipURL = nil
+                self.state = .buffering
+            }
+
+            if let err {
+                print("❌ [CricReel] VideoWriter: \(err)")
+                DispatchQueue.main.async { self.lastError = err.localizedDescription }
+            } else if let outURL {
+                print("✅ [CricReel] Saved \(outURL.lastPathComponent) (\(written) frames)")
+                DispatchQueue.main.async {
+                    self.lastSavedURL = outURL
+                    NotificationCenter.default.post(name: .newClipSaved, object: outURL)
+                }
+            }
+            self.beginCooldown()
         }
     }
 
@@ -258,10 +320,17 @@ class VideoWriter: ObservableObject {
 
     // MARK: - Error Handling
 
+    /// Runs on writingQueue.
     private func failWrite(_ msg: String) {
-        print("❌ [CriClips] VideoWriter: \(msg)")
-        isWriting = false
-        isCollectingPost = false
+        print("❌ [CricReel] VideoWriter: \(msg)")
+        if let writer = assetWriter, writer.status == .writing {
+            writer.cancelWriting()
+        }
+        assetWriter = nil
+        videoInput = nil
+        adaptor = nil
+        currentClipURL = nil
+        state = .buffering
         DispatchQueue.main.async { [weak self] in
             self?.isRecording = false
             self?.lastError = msg
@@ -296,25 +365,64 @@ class VideoWriter: ObservableObject {
             CVPixelBufferUnlockBaseAddress(src, .readOnly)
             CVPixelBufferUnlockBaseAddress(out, [])
         }
-        if let s = CVPixelBufferGetBaseAddress(src), let d = CVPixelBufferGetBaseAddress(out) {
-            let bytes = CVPixelBufferGetDataSize(src)
-            memcpy(d, s, bytes)
+
+        if CVPixelBufferIsPlanar(src) {
+            for plane in 0..<CVPixelBufferGetPlaneCount(src) {
+                guard let s = CVPixelBufferGetBaseAddressOfPlane(src, plane),
+                      let d = CVPixelBufferGetBaseAddressOfPlane(out, plane) else { return nil }
+                let height = CVPixelBufferGetHeightOfPlane(src, plane)
+                let srcBPR = CVPixelBufferGetBytesPerRowOfPlane(src, plane)
+                let dstBPR = CVPixelBufferGetBytesPerRowOfPlane(out, plane)
+                if srcBPR == dstBPR {
+                    memcpy(d, s, srcBPR * height)
+                } else {
+                    let rowBytes = min(srcBPR, dstBPR)
+                    for row in 0..<height {
+                        memcpy(d + row * dstBPR, s + row * srcBPR, rowBytes)
+                    }
+                }
+            }
+        } else if let s = CVPixelBufferGetBaseAddress(src),
+                  let d = CVPixelBufferGetBaseAddress(out) {
+            let height = CVPixelBufferGetHeight(src)
+            let srcBPR = CVPixelBufferGetBytesPerRow(src)
+            let dstBPR = CVPixelBufferGetBytesPerRow(out)
+            if srcBPR == dstBPR {
+                memcpy(d, s, srcBPR * height)
+            } else {
+                let rowBytes = min(srcBPR, dstBPR)
+                for row in 0..<height {
+                    memcpy(d + row * dstBPR, s + row * srcBPR, rowBytes)
+                }
+            }
         }
         return out
     }
 
     // MARK: - Helpers
 
+    /// ~0.2 bits per pixel per frame — generous enough that a 150 km/h ball stays
+    /// crisp instead of smearing into macroblocks. 1080p30 ≈ 12 Mbps, 1080p60 ≈ 25 Mbps,
+    /// 4K30 ≈ 50 Mbps, 4K60 ≈ 100 Mbps.
     private func targetBitRate() -> Int {
-        let base = 16_000_000.0
-        return max(8_000_000, Int(base * config.frameRate.value / 30.0))
+        let bitsPerPixel = 0.2
+        let rate = Double(videoWidth * videoHeight) * config.frameRate.value * bitsPerPixel
+        return max(8_000_000, Int(rate))
     }
 
+    /// Runs on writingQueue.
     private func cleanup() {
         preTriggerBuffer.removeAll()
-        postTriggerBuffer.removeAll()
-        isWriting = false
-        isCollectingPost = false
-        postCollectedCount = 0
+        if let writer = assetWriter, writer.status == .writing {
+            writer.cancelWriting()
+        }
+        assetWriter = nil
+        videoInput = nil
+        adaptor = nil
+        currentClipURL = nil
+        state = .buffering
+        postFrameCount = 0
+        writtenFrameCount = 0
+        DispatchQueue.main.async { [weak self] in self?.isRecording = false }
     }
 }

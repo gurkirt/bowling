@@ -220,6 +220,13 @@ enum ScoringEngine {
         if input.isWicket {
             let how = input.dismissal?.displayName ?? "Out"
             var line = "\(prefix) OUT! \(how)"
+            switch input.extra {
+            case .wide:   line += " off a wide"
+            case .noBall: line += " off a no-ball"
+            case .bye:    line += " going for byes"
+            case .legBye: line += " going for leg byes"
+            case .none:   break
+            }
             if let f = fielderName, let d = input.dismissal, d.involvesFielder {
                 line += " (\(f))"
             }

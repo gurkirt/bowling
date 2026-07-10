@@ -19,9 +19,22 @@ struct MatchListView: View {
         NavigationStack(path: $navPath) {
             List {
                 if matches.isEmpty {
-                    ContentUnavailableView("No Matches",
-                                           systemImage: "sportscourt",
-                                           description: Text("Tap + to create a match."))
+                    ContentUnavailableView {
+                        VStack(spacing: 12) {
+                            Image("CricReelLogo")
+                                .resizable().scaledToFit()
+                                .frame(height: 120)
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                            Text("No Matches").font(.title3.bold())
+                        }
+                    } description: {
+                        Text("Create a match to start scoring and capturing highlights.")
+                    } actions: {
+                        Button { showingSetup = true } label: {
+                            Label("New Match", systemImage: "plus")
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
                 }
                 ForEach(matches) { match in
                     NavigationLink(value: match) {
@@ -34,6 +47,12 @@ struct MatchListView: View {
             }
             .navigationTitle("Matches")
             .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Image("CricReelLogo")
+                        .resizable().scaledToFit()
+                        .frame(height: 30)
+                        .accessibilityLabel("CricReel")
+                }
                 ToolbarItem(placement: .primaryAction) {
                     Button { showingSetup = true } label: { Image(systemName: "plus") }
                 }

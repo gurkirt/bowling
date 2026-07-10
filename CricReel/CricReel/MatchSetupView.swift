@@ -55,31 +55,60 @@ struct MatchSetupView: View {
                 }
 
                 Section("Format") {
-                    Stepper("Overs per innings: \(overs)", value: $overs, in: 1...50)
-                    Stepper("Players per side: \(playersPerSide)", value: $playersPerSide, in: 2...11)
-                        .onChange(of: playersPerSide) { _, new in
-                            if lineupA.count > new { lineupA = Array(lineupA.prefix(new)) }
-                            if lineupB.count > new { lineupB = Array(lineupB.prefix(new)) }
-                        }
-                    Stepper("Runs per wide: \(runsPerWide)", value: $runsPerWide, in: 1...5)
-                    Stepper("Runs per no-ball: \(runsPerNoBall)", value: $runsPerNoBall, in: 1...5)
-                    Stepper(maxOversPerBowler == 0 ? "Max overs / bowler: no limit"
-                                                   : "Max overs / bowler: \(maxOversPerBowler)",
-                            value: $maxOversPerBowler, in: 0...overs)
-                    Stepper("Min bowlers: \(minBowlers)", value: $minBowlers, in: 2...playersPerSide)
+                    Picker("Overs per innings", selection: $overs) {
+                        ForEach(1...50, id: \.self) { Text("\($0)").tag($0) }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: overs) { _, new in
+                        if maxOversPerBowler > new { maxOversPerBowler = 0 }
+                    }
+                    Picker("Players per side", selection: $playersPerSide) {
+                        ForEach(2...11, id: \.self) { Text("\($0)").tag($0) }
+                    }
+                    .pickerStyle(.menu)
+                    .onChange(of: playersPerSide) { _, new in
+                        if lineupA.count > new { lineupA = Array(lineupA.prefix(new)) }
+                        if lineupB.count > new { lineupB = Array(lineupB.prefix(new)) }
+                        if minBowlers > new { minBowlers = new }
+                    }
+                    Picker("Runs per wide", selection: $runsPerWide) {
+                        ForEach(1...5, id: \.self) { Text("\($0)").tag($0) }
+                    }
+                    .pickerStyle(.menu)
+                    Picker("Runs per no-ball", selection: $runsPerNoBall) {
+                        ForEach(1...5, id: \.self) { Text("\($0)").tag($0) }
+                    }
+                    .pickerStyle(.menu)
+                    Picker("Max overs per bowler", selection: $maxOversPerBowler) {
+                        Text("No limit").tag(0)
+                        ForEach(1...overs, id: \.self) { Text("\($0)").tag($0) }
+                    }
+                    .pickerStyle(.menu)
+                    Picker("Min bowlers", selection: $minBowlers) {
+                        ForEach(2...playersPerSide, id: \.self) { Text("\($0)").tag($0) }
+                    }
+                    .pickerStyle(.menu)
                 }
 
                 if let a = teamA { lineupSection(team: a, lineup: $lineupA) }
                 if let b = teamB { lineupSection(team: b, lineup: $lineupB) }
 
                 Section("Toss") {
-                    Picker("Won by", selection: $tossWinnerIsA) {
-                        Text(teamA?.name ?? "Team A").tag(true)
-                        Text(teamB?.name ?? "Team B").tag(false)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Won by").font(.subheadline).foregroundStyle(.secondary)
+                        Picker("Won by", selection: $tossWinnerIsA) {
+                            Text(teamA?.name ?? "Team A").tag(true)
+                            Text(teamB?.name ?? "Team B").tag(false)
+                        }
+                        .pickerStyle(.segmented)
                     }
-                    Picker("Elected to", selection: $tossDecision) {
-                        Text("Bat").tag(TossDecision.bat)
-                        Text("Bowl").tag(TossDecision.bowl)
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Elected to").font(.subheadline).foregroundStyle(.secondary)
+                        Picker("Elected to", selection: $tossDecision) {
+                            Text("Bat").tag(TossDecision.bat)
+                            Text("Bowl").tag(TossDecision.bowl)
+                        }
+                        .pickerStyle(.segmented)
                     }
                 }
             }

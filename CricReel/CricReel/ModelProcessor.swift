@@ -12,6 +12,7 @@ import CoreML
 import AVFoundation
 import CoreImage
 import UIKit
+import Accelerate
 
 class ModelProcessor: ObservableObject {
     @Published var isModelLoaded = false
@@ -41,8 +42,14 @@ class ModelProcessor: ObservableObject {
     @Published var requiredActionCount: Int = 4
     @Published var scoreThreshold: Double = 0.5
     @Published var inferenceFrameInterval: Int = 1
-    /// Side length (px) of the published preview crop.
-    var previewResolution: CGFloat = 384
+    /// Side length (px) of the published preview crop. Matches the model input so the
+    /// preview reuses the 256×256 region without an extra higher-res GPU render.
+    var previewResolution: CGFloat = 256
+
+    /// Inference ceiling. Detection quality doesn't improve past ~30 scored frames/sec,
+    /// so at 60 fps capture every other frame is skipped to save ANE/GPU power.
+    private let maxInferenceFPS: Double = 30
+    private var lastInferenceTime: CFTimeInterval = 0
 
     private var recentActionWins: [Bool] = []
     private var model: MLModel?
@@ -121,6 +128,13 @@ class ModelProcessor: ObservableObject {
 
         inferenceCounter &+= 1
         guard inferenceCounter % max(1, inferenceFrameInterval) == 0 else { return }
+
+        // Cap inference at ~30 fps regardless of capture rate. The 0.9 factor absorbs
+        // frame-timing jitter so 30 fps capture is never accidentally halved.
+        let now = CACurrentMediaTime()
+        guard now - lastInferenceTime >= (1.0 / maxInferenceFPS) * 0.9 else { return }
+        lastInferenceTime = now
+
         frameCounter &+= 1
 
         var image = CIImage(cvPixelBuffer: pixelBuffer)
@@ -139,17 +153,19 @@ class ModelProcessor: ObservableObject {
                                 width: side, height: side)
         let square = image.cropped(to: squareRect)
 
-        // Higher-resolution preview of the model-input region (every 4 frames).
+        // Resize to 256×256 for inference.
+        let scale = 256.0 / side
+        let resized = square.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+
+        // Preview of the model-input region (every 4 scored frames) — rendered from the
+        // already-downscaled 256px image, not the full-resolution crop.
         if frameCounter % 4 == 0 {
             let target = CGSize(width: previewResolution, height: previewResolution)
-            if let ui = renderUIImage(from: square, targetSize: target) {
+            if let ui = renderUIImage(from: resized, targetSize: target) {
                 DispatchQueue.main.async { [weak self] in self?.previewImage = ui }
             }
         }
 
-        // Resize to 256×256 for inference.
-        let scale = 256.0 / side
-        let resized = square.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
         guard let pb = createPixelBuffer(from: resized, width: 256, height: 256) else { return }
 
         visionQueue.async { [weak self] in
@@ -243,16 +259,20 @@ class ModelProcessor: ObservableObject {
         let pixels = base.assumingMemoryBound(to: UInt8.self)
         let stride = width * height
 
-        let meanR: Float32 = 0.485, meanG: Float32 = 0.456, meanB: Float32 = 0.406
-        let stdR:  Float32 = 0.229, stdG:  Float32 = 0.224, stdB:  Float32 = 0.225
+        // ImageNet normalisation, vectorised: out = px * 1/(255·std) + (−mean/std).
+        let means: [Float] = [0.485, 0.456, 0.406]          // R, G, B
+        let stds:  [Float] = [0.229, 0.224, 0.225]
+        let bgraOffset = [2, 1, 0]                          // R, G, B positions in BGRA
 
         let ptr = UnsafeMutablePointer<Float32>(OpaquePointer(array.dataPointer))
-        for y in 0 ..< height {
-            for x in 0 ..< width {
-                let off = y * bytesPerRow + x * 4
-                ptr[0 * stride + y * width + x] = (Float32(pixels[off + 2]) / 255.0 - meanR) / stdR
-                ptr[1 * stride + y * width + x] = (Float32(pixels[off + 1]) / 255.0 - meanG) / stdG
-                ptr[2 * stride + y * width + x] = (Float32(pixels[off + 0]) / 255.0 - meanB) / stdB
+        for c in 0 ..< 3 {
+            var scale = Float(1.0) / (255.0 * stds[c])
+            var bias  = -means[c] / stds[c]
+            for y in 0 ..< height {
+                let src = pixels + y * bytesPerRow + bgraOffset[c]
+                let dst = ptr + c * stride + y * width
+                vDSP_vfltu8(src, 4, dst, 1, vDSP_Length(width))
+                vDSP_vsmsa(dst, 1, &scale, &bias, dst, 1, vDSP_Length(width))
             }
         }
         return array

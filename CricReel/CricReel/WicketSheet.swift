@@ -12,6 +12,9 @@ import SwiftUI
 
 struct WicketSheet: View {
     let presetDismissal: DismissalType?
+    /// Delivery type the wicket fell on (.none for a fair ball; wides/no-balls keep
+    /// their penalty runs and don't advance the over).
+    var extra: ExtraType = .none
     let strikerID: UUID
     let nonStrikerID: UUID
     let strikerName: String
@@ -36,6 +39,9 @@ struct WicketSheet: View {
 
     private var dismissal: DismissalType { presetDismissal ?? .bowled }
     private var allOut: Bool { availableBatters.isEmpty }
+    /// Wides and no-balls are not legal deliveries, so the over continues after them.
+    private var advancesOver: Bool { extra != .wide && extra != .noBall }
+    private var endsOver: Bool { isLastBallOfOver && advancesOver }
 
     var body: some View {
         NavigationStack {
@@ -44,6 +50,16 @@ struct WicketSheet: View {
                     HStack {
                         Image(systemName: "figure.fall").foregroundStyle(.red)
                         Text(dismissal.displayName).font(.headline)
+                        if extra != .none {
+                            Text("on a \(extra.displayName)")
+                                .font(.subheadline).foregroundStyle(.orange)
+                        }
+                    }
+                } footer: {
+                    if !advancesOver {
+                        Text("The \(extra.displayName.lowercased()) penalty runs still count and the ball is re-bowled.")
+                    } else if extra != .none {
+                        Text("Scored as \(extra.displayName.lowercased())s; the ball counts toward the over.")
                     }
                 }
 
@@ -97,7 +113,7 @@ struct WicketSheet: View {
 
                 if !allOut && dismissal.asksStrike {
                     Section(header: Text("On strike for next ball"),
-                            footer: Text(isLastBallOfOver ? "Over ends on this ball — strike rotates after this choice." : "")) {
+                            footer: Text(endsOver ? "Over ends on this ball — strike rotates after this choice." : "")) {
                         let r = resultBatters()
                         Picker("Striker", selection: $strikerIsFirstResult) {
                             Text(lookup.name(r.0)).tag(true)
@@ -136,11 +152,12 @@ struct WicketSheet: View {
         let (a, b) = resultBatters()
         var striker = dismissal.asksStrike ? (strikerIsFirstResult ? a : b) : a
         var nonStriker = dismissal.asksStrike ? (strikerIsFirstResult ? b : a) : b
-        // Over change takes effect after strike is assigned.
-        if isLastBallOfOver { swap(&striker, &nonStriker) }
+        // Over change takes effect after strike is assigned — but only if this
+        // delivery is legal (a wicket on a wide/no-ball doesn't end the over).
+        if endsOver { swap(&striker, &nonStriker) }
 
         var input = BallInput()
-        input.extra = .none
+        input.extra = extra
         input.padRuns = dismissal == .runOut ? runsCompleted : 0
         input.isWicket = true
         input.dismissal = dismissal

@@ -93,31 +93,42 @@ enum ClipOverlay {
     }
 }
 
-/// In-app playback caption (static — shows the ball's final score). Larger than before.
+/// In-app playback caption (static — shows the ball's final score).
 struct ClipOverlayView: View {
     let info: OverlayInfo
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 7) {
             Text(info.scoreAfter)
                 .font(.headline.weight(.semibold))
+                .foregroundStyle(.white.opacity(0.95))
             Text(info.delivery)
                 .font(.subheadline)
+                .foregroundStyle(.white.opacity(0.75))
             HStack(spacing: 10) {
                 Text(info.badge)
                     .font(.title3.bold()).monospacedDigit()
-                    .frame(minWidth: 38, minHeight: 38)
-                    .background(info.accent.color, in: Circle())
+                    .frame(minWidth: 40, minHeight: 40)
+                    .background(info.accent.color.gradient, in: Circle())
+                    .overlay(Circle().strokeBorder(.white.opacity(0.35), lineWidth: 1))
                     .foregroundStyle(.white)
                 Text(info.outcome)
                     .font(.title2.weight(.heavy))
+                    .foregroundStyle(.white)
             }
         }
         .multilineTextAlignment(.center)
-        .foregroundStyle(.white)
-        .padding(.horizontal, 18).padding(.vertical, 12)
-        .background(.black.opacity(0.45), in: RoundedRectangle(cornerRadius: 16))
-        .shadow(radius: 6)
+        .padding(.horizontal, 20).padding(.vertical, 14)
+        .background(.black.opacity(0.55), in: RoundedRectangle(cornerRadius: 18))
+        .overlay(
+            RoundedRectangle(cornerRadius: 18)
+                .strokeBorder(
+                    LinearGradient(colors: [info.accent.color.opacity(0.85),
+                                            info.accent.color.opacity(0.25)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 1.5)
+        )
+        .shadow(color: .black.opacity(0.35), radius: 8, y: 3)
     }
 }
 

@@ -116,7 +116,7 @@ struct MiniScoreboard: View {
     private func bowlerRow(_ id: UUID?, isCurrent: Bool) -> some View {
         let line = id.flatMap { bowlingLines[$0] }
         return HStack(spacing: 8) {
-            Image(systemName: "baseball").font(.caption2)
+            Image(systemName: "cricket.ball").font(.caption2)
                 .foregroundStyle(isCurrent ? .primary : .secondary)
             Text(lookup.reel(id)).lineLimit(1)
             Spacer()

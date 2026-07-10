@@ -27,6 +27,7 @@ struct ScoringEntryView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var showingWicket = false
     @State private var wicketPreset: DismissalType = .bowled
+    @State private var wicketExtra: ExtraType = .none
 
     var body: some View {
         NavigationStack {
@@ -60,7 +61,8 @@ struct ScoringEntryView: View {
                             onCommit(input)
                             dismiss()
                         },
-                        onWicket: { type in
+                        onWicket: { extra, type in
+                            wicketExtra = extra
                             wicketPreset = type
                             showingWicket = true
                         })
@@ -75,6 +77,7 @@ struct ScoringEntryView: View {
             .sheet(isPresented: $showingWicket) {
                 WicketSheet(
                     presetDismissal: wicketPreset,
+                    extra: wicketExtra,
                     strikerID: strikerID,
                     nonStrikerID: nonStrikerID,
                     strikerName: strikerName,
