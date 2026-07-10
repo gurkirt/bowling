@@ -78,15 +78,8 @@ struct ContentView: View {
         .onChange(of: preTriggerDuration)   { _ in applyConfig() }
         .onChange(of: postTriggerDuration)  { _ in applyConfig() }
         .onChange(of: cooldownDuration)     { _ in applyConfig() }
-        .onChange(of: selectedFrameRate) { newFPS in
-            // 4K + 60 fps is not a valid combination on most devices
-            if newFPS == .fps60 && selectedResolution == .uhd4k { selectedResolution = .hd1080 }
-            applyConfig()
-        }
-        .onChange(of: selectedResolution) { newRes in
-            if newRes == .uhd4k && selectedFrameRate == .fps60 { selectedFrameRate = .fps30 }
-            applyConfig()
-        }
+        .onChange(of: selectedFrameRate)  { _ in applyConfig() }
+        .onChange(of: selectedResolution) { _ in applyConfig() }
         // Pause camera + model whenever any sheet is presented; resume on dismiss
         .onChange(of: showingClips)      { pauseOrResume(presenting: $0) }
         .onChange(of: showingSettings)   { pauseOrResume(presenting: $0) }
@@ -973,9 +966,8 @@ struct SettingsView: View {
                             }
                         }
                         .pickerStyle(.segmented)
-                        .disabled(selectedResolution == .uhd4k)
-                        if selectedResolution == .uhd4k {
-                            Text("4K is limited to 30 fps")
+                        if selectedResolution == .uhd4k && selectedFrameRate == .fps60 {
+                            Text("Falls back to 30 fps if this device has no 4K@60 format")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
