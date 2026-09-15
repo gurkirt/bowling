@@ -8,5 +8,16 @@
       "middle_frame": 63,
       "class": "bowling"
     }
-  ]
+  ],
+  "bounding_boxes": {
+    "63": [
+      {
+        "x1": 261,
+        "y1": 1619,
+        "x2": 783,
+        "y2": 3166,
+        "class": "bowler"
+      }
+    ]
+  }
 }
