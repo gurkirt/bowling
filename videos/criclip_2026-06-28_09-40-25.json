@@ -1,5 +1,16 @@
 {
-  "video": "criclip_2026-06-28_09-40-25.mp4",
-  "total_frames": 90,
-  "temporal_events": []
+ "video": "criclip_2026-06-28_09-40-25.mp4",
+ "total_frames": 90,
+ "temporal_events": [],
+ "bounding_boxes": {
+  "45": [
+   {
+    "x1": 435,
+    "y1": 1328,
+    "x2": 566,
+    "y2": 1659,
+    "class": "stumps"
+   }
+  ]
+ }
 }

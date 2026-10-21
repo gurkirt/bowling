@@ -1,269 +1,524 @@
 {
-  "video": "Gully_cricket_soy_mZTE7BE_converted.mp4",
-  "total_frames": 1802,
-  "temporal_events": [
-    {
-      "start_frame": 310,
-      "end_frame": 315,
-      "middle_frame": 312,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 378,
-      "end_frame": 383,
-      "middle_frame": 380,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 486,
-      "end_frame": 492,
-      "middle_frame": 489,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 613,
-      "end_frame": 618,
-      "middle_frame": 615,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 686,
-      "end_frame": 691,
-      "middle_frame": 688,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 749,
-      "end_frame": 754,
-      "middle_frame": 751,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 953,
-      "end_frame": 958,
-      "middle_frame": 955,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1018,
-      "end_frame": 1022,
-      "middle_frame": 1020,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1102,
-      "end_frame": 1107,
-      "middle_frame": 1104,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1166,
-      "end_frame": 1171,
-      "middle_frame": 1168,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1249,
-      "end_frame": 1253,
-      "middle_frame": 1251,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1249,
-      "end_frame": 1253,
-      "middle_frame": 1251,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1335,
-      "end_frame": 1341,
-      "middle_frame": 1338,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1409,
-      "end_frame": 1414,
-      "middle_frame": 1411,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1467,
-      "end_frame": 1471,
-      "middle_frame": 1469,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1538,
-      "end_frame": 1543,
-      "middle_frame": 1540,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1596,
-      "end_frame": 1599,
-      "middle_frame": 1597,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1694,
-      "end_frame": 1698,
-      "middle_frame": 1696,
-      "class": "bowling"
-    }
-  ],
-  "bounding_boxes": {
-    "312": [
-      {
-        "x1": 604,
-        "y1": 681,
-        "x2": 1052,
-        "y2": 1831,
-        "class": "bowler"
-      }
-    ],
-    "380": [
-      {
-        "x1": 622,
-        "y1": 628,
-        "x2": 1096,
-        "y2": 1940,
-        "class": "bowler"
-      }
-    ],
-    "489": [
-      {
-        "x1": 621,
-        "y1": 642,
-        "x2": 1065,
-        "y2": 1813,
-        "class": "bowler"
-      }
-    ],
-    "615": [
-      {
-        "x1": 578,
-        "y1": 649,
-        "x2": 947,
-        "y2": 1813,
-        "class": "bowler"
-      }
-    ],
-    "688": [
-      {
-        "x1": 569,
-        "y1": 617,
-        "x2": 1001,
-        "y2": 1804,
-        "class": "bowler"
-      }
-    ],
-    "751": [
-      {
-        "x1": 591,
-        "y1": 599,
-        "x2": 1018,
-        "y2": 1802,
-        "class": "bowler"
-      }
-    ],
-    "955": [
-      {
-        "x1": 611,
-        "y1": 607,
-        "x2": 1073,
-        "y2": 1813,
-        "class": "bowler"
-      }
-    ],
-    "1020": [
-      {
-        "x1": 12,
-        "y1": 454,
-        "x2": 420,
-        "y2": 1754,
-        "class": "bowler"
-      }
-    ],
-    "1104": [
-      {
-        "x1": 560,
-        "y1": 621,
-        "x2": 1029,
-        "y2": 1796,
-        "class": "bowler"
-      }
-    ],
-    "1168": [
-      {
-        "x1": 573,
-        "y1": 632,
-        "x2": 1048,
-        "y2": 1796,
-        "class": "bowler"
-      }
-    ],
-    "1251": [
-      {
-        "x1": 8,
-        "y1": 430,
-        "x2": 440,
-        "y2": 1768,
-        "class": "bowler"
-      }
-    ],
-    "1338": [
-      {
-        "x1": -27,
-        "y1": 534,
-        "x2": 387,
-        "y2": 1755,
-        "class": "bowler"
-      }
-    ],
-    "1411": [
-      {
-        "x1": 652,
-        "y1": 660,
-        "x2": 1059,
-        "y2": 1800,
-        "class": "bowler"
-      }
-    ],
-    "1469": [
-      {
-        "x1": 20,
-        "y1": 446,
-        "x2": 355,
-        "y2": 1760,
-        "class": "bowler"
-      }
-    ],
-    "1540": [
-      {
-        "x1": 589,
-        "y1": 675,
-        "x2": 1037,
-        "y2": 1813,
-        "class": "bowler"
-      }
-    ],
-    "1597": [
-      {
-        "x1": -12,
-        "y1": 709,
-        "x2": 334,
-        "y2": 1823,
-        "class": "bowler"
-      }
-    ],
-    "1696": [
-      {
-        "x1": 43,
-        "y1": 421,
-        "x2": 399,
-        "y2": 1765,
-        "class": "bowler"
-      }
-    ]
+ "video": "Gully_cricket_soy_mZTE7BE_converted.mp4",
+ "total_frames": 1802,
+ "temporal_events": [
+  {
+   "start_frame": 310,
+   "end_frame": 315,
+   "middle_frame": 312,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 378,
+   "end_frame": 383,
+   "middle_frame": 380,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 486,
+   "end_frame": 492,
+   "middle_frame": 489,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 613,
+   "end_frame": 618,
+   "middle_frame": 615,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 686,
+   "end_frame": 691,
+   "middle_frame": 688,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 749,
+   "end_frame": 754,
+   "middle_frame": 751,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 953,
+   "end_frame": 958,
+   "middle_frame": 955,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1018,
+   "end_frame": 1022,
+   "middle_frame": 1020,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1102,
+   "end_frame": 1107,
+   "middle_frame": 1104,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1166,
+   "end_frame": 1171,
+   "middle_frame": 1168,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1249,
+   "end_frame": 1253,
+   "middle_frame": 1251,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1249,
+   "end_frame": 1253,
+   "middle_frame": 1251,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1335,
+   "end_frame": 1341,
+   "middle_frame": 1338,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1409,
+   "end_frame": 1414,
+   "middle_frame": 1411,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1467,
+   "end_frame": 1471,
+   "middle_frame": 1469,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1538,
+   "end_frame": 1543,
+   "middle_frame": 1540,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1596,
+   "end_frame": 1599,
+   "middle_frame": 1597,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1694,
+   "end_frame": 1698,
+   "middle_frame": 1696,
+   "class": "bowling"
   }
+ ],
+ "bounding_boxes": {
+  "312": [
+   {
+    "x1": 604,
+    "y1": 681,
+    "x2": 1052,
+    "y2": 1831,
+    "class": "bowler"
+   },
+   {
+    "x1": 489,
+    "y1": 431,
+    "x2": 609,
+    "y2": 774,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 480,
+    "y1": 1328,
+    "x2": 566,
+    "y2": 1869,
+    "class": "stumps"
+   }
+  ],
+  "380": [
+   {
+    "x1": 622,
+    "y1": 628,
+    "x2": 1096,
+    "y2": 1940,
+    "class": "bowler"
+   },
+   {
+    "x1": 465,
+    "y1": 551,
+    "x2": 618,
+    "y2": 978,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 480,
+    "y1": 1328,
+    "x2": 566,
+    "y2": 1869,
+    "class": "stumps"
+   }
+  ],
+  "489": [
+   {
+    "x1": 621,
+    "y1": 642,
+    "x2": 1065,
+    "y2": 1813,
+    "class": "bowler"
+   },
+   {
+    "x1": 489,
+    "y1": 424,
+    "x2": 606,
+    "y2": 750,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 475,
+    "y1": 1286,
+    "x2": 573,
+    "y2": 1808,
+    "class": "stumps"
+   }
+  ],
+  "615": [
+   {
+    "x1": 578,
+    "y1": 649,
+    "x2": 947,
+    "y2": 1813,
+    "class": "bowler"
+   },
+   {
+    "x1": 501,
+    "y1": 425,
+    "x2": 616,
+    "y2": 755,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 475,
+    "y1": 1286,
+    "x2": 573,
+    "y2": 1808,
+    "class": "stumps"
+   }
+  ],
+  "688": [
+   {
+    "x1": 569,
+    "y1": 617,
+    "x2": 1001,
+    "y2": 1804,
+    "class": "bowler"
+   },
+   {
+    "x1": 494,
+    "y1": 428,
+    "x2": 609,
+    "y2": 752,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 475,
+    "y1": 1286,
+    "x2": 573,
+    "y2": 1808,
+    "class": "stumps"
+   }
+  ],
+  "751": [
+   {
+    "x1": 591,
+    "y1": 599,
+    "x2": 1018,
+    "y2": 1802,
+    "class": "bowler"
+   },
+   {
+    "x1": 473,
+    "y1": 427,
+    "x2": 590,
+    "y2": 752,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 475,
+    "y1": 1286,
+    "x2": 573,
+    "y2": 1808,
+    "class": "stumps"
+   }
+  ],
+  "955": [
+   {
+    "x1": 611,
+    "y1": 607,
+    "x2": 1073,
+    "y2": 1813,
+    "class": "bowler"
+   },
+   {
+    "x1": 503,
+    "y1": 421,
+    "x2": 614,
+    "y2": 750,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 475,
+    "y1": 1286,
+    "x2": 573,
+    "y2": 1808,
+    "class": "stumps"
+   }
+  ],
+  "1020": [
+   {
+    "x1": 12,
+    "y1": 454,
+    "x2": 420,
+    "y2": 1754,
+    "class": "bowler"
+   },
+   {
+    "x1": 494,
+    "y1": 415,
+    "x2": 608,
+    "y2": 754,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 456,
+    "y1": 1283,
+    "x2": 582,
+    "y2": 1821,
+    "class": "stumps"
+   }
+  ],
+  "1104": [
+   {
+    "x1": 560,
+    "y1": 621,
+    "x2": 1029,
+    "y2": 1796,
+    "class": "bowler"
+   },
+   {
+    "x1": 492,
+    "y1": 425,
+    "x2": 606,
+    "y2": 758,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 456,
+    "y1": 1283,
+    "x2": 582,
+    "y2": 1821,
+    "class": "stumps"
+   }
+  ],
+  "1168": [
+   {
+    "x1": 573,
+    "y1": 632,
+    "x2": 1048,
+    "y2": 1796,
+    "class": "bowler"
+   },
+   {
+    "x1": 495,
+    "y1": 429,
+    "x2": 615,
+    "y2": 755,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 456,
+    "y1": 1283,
+    "x2": 582,
+    "y2": 1821,
+    "class": "stumps"
+   }
+  ],
+  "1251": [
+   {
+    "x1": 8,
+    "y1": 430,
+    "x2": 440,
+    "y2": 1768,
+    "class": "bowler"
+   },
+   {
+    "x1": 499,
+    "y1": 419,
+    "x2": 622,
+    "y2": 754,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 456,
+    "y1": 1283,
+    "x2": 582,
+    "y2": 1821,
+    "class": "stumps"
+   }
+  ],
+  "1338": [
+   {
+    "x1": -27,
+    "y1": 534,
+    "x2": 387,
+    "y2": 1755,
+    "class": "bowler"
+   },
+   {
+    "x1": 494,
+    "y1": 426,
+    "x2": 610,
+    "y2": 755,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 456,
+    "y1": 1283,
+    "x2": 582,
+    "y2": 1821,
+    "class": "stumps"
+   }
+  ],
+  "1411": [
+   {
+    "x1": 652,
+    "y1": 660,
+    "x2": 1059,
+    "y2": 1800,
+    "class": "bowler"
+   },
+   {
+    "x1": 492,
+    "y1": 424,
+    "x2": 609,
+    "y2": 754,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 456,
+    "y1": 1283,
+    "x2": 582,
+    "y2": 1821,
+    "class": "stumps"
+   }
+  ],
+  "1469": [
+   {
+    "x1": 20,
+    "y1": 446,
+    "x2": 355,
+    "y2": 1760,
+    "class": "bowler"
+   },
+   {
+    "x1": 485,
+    "y1": 422,
+    "x2": 607,
+    "y2": 750,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 456,
+    "y1": 1283,
+    "x2": 582,
+    "y2": 1821,
+    "class": "stumps"
+   }
+  ],
+  "1540": [
+   {
+    "x1": 589,
+    "y1": 675,
+    "x2": 1037,
+    "y2": 1813,
+    "class": "bowler"
+   },
+   {
+    "x1": 492,
+    "y1": 421,
+    "x2": 606,
+    "y2": 751,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 456,
+    "y1": 1283,
+    "x2": 582,
+    "y2": 1821,
+    "class": "stumps"
+   }
+  ],
+  "1597": [
+   {
+    "x1": -12,
+    "y1": 709,
+    "x2": 334,
+    "y2": 1823,
+    "class": "bowler"
+   },
+   {
+    "x1": 481,
+    "y1": 417,
+    "x2": 604,
+    "y2": 751,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 456,
+    "y1": 1283,
+    "x2": 582,
+    "y2": 1821,
+    "class": "stumps"
+   }
+  ],
+  "1696": [
+   {
+    "x1": 43,
+    "y1": 421,
+    "x2": 399,
+    "y2": 1765,
+    "class": "bowler"
+   },
+   {
+    "x1": 478,
+    "y1": 419,
+    "x2": 596,
+    "y2": 752,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 456,
+    "y1": 1283,
+    "x2": 582,
+    "y2": 1821,
+    "class": "stumps"
+   }
+  ]
+ }
 }

@@ -1,23 +1,46 @@
 {
-  "video": "IMG_8472.MOV",
-  "total_frames": 150,
-  "temporal_events": [
-    {
-      "start_frame": 55,
-      "end_frame": 64,
-      "middle_frame": 59,
-      "class": "bowling"
-    }
-  ],
-  "bounding_boxes": {
-    "59": [
-      {
-        "x1": 1246,
-        "y1": 1814,
-        "x2": 1620,
-        "y2": 2846,
-        "class": "bowler"
-      }
-    ]
+ "video": "IMG_8472.MOV",
+ "total_frames": 150,
+ "temporal_events": [
+  {
+   "start_frame": 55,
+   "end_frame": 64,
+   "middle_frame": 59,
+   "class": "bowling"
   }
+ ],
+ "bounding_boxes": {
+  "59": [
+   {
+    "x1": 1246,
+    "y1": 1814,
+    "x2": 1620,
+    "y2": 2846,
+    "class": "bowler"
+   },
+   {
+    "x1": 1132,
+    "y1": 1853,
+    "x2": 1201,
+    "y2": 2022,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 0,
+    "y1": 1813,
+    "x2": 165,
+    "y2": 2587,
+    "class": "non_striker",
+    "sam3_person_id": "3"
+   },
+   {
+    "x1": 1052,
+    "y1": 2380,
+    "x2": 1240,
+    "y2": 2880,
+    "class": "stumps"
+   }
+  ]
+ }
 }

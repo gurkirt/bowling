@@ -1,23 +1,38 @@
 {
-  "video": "criclip_2026-06-28_09-17-06.mp4",
-  "total_frames": 90,
-  "temporal_events": [
-    {
-      "start_frame": 26,
-      "end_frame": 31,
-      "middle_frame": 28,
-      "class": "bowling"
-    }
-  ],
-  "bounding_boxes": {
-    "28": [
-      {
-        "x1": 259,
-        "y1": 767,
-        "x2": 483,
-        "y2": 1519,
-        "class": "bowler"
-      }
-    ]
+ "video": "criclip_2026-06-28_09-17-06.mp4",
+ "total_frames": 90,
+ "temporal_events": [
+  {
+   "start_frame": 26,
+   "end_frame": 31,
+   "middle_frame": 28,
+   "class": "bowling"
   }
+ ],
+ "bounding_boxes": {
+  "28": [
+   {
+    "x1": 259,
+    "y1": 767,
+    "x2": 483,
+    "y2": 1519,
+    "class": "bowler"
+   },
+   {
+    "x1": 559,
+    "y1": 840,
+    "x2": 592,
+    "y2": 939,
+    "class": "striker",
+    "sam3_person_id": "13"
+   },
+   {
+    "x1": 490,
+    "y1": 1206,
+    "x2": 616,
+    "y2": 1532,
+    "class": "stumps"
+   }
+  ]
+ }
 }

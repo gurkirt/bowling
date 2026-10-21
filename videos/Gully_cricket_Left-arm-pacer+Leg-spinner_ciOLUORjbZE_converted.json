@@ -1,203 +1,398 @@
 {
-  "video": "Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted.mp4",
-  "total_frames": 1557,
-  "temporal_events": [
-    {
-      "start_frame": 116,
-      "end_frame": 120,
-      "middle_frame": 118,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 199,
-      "end_frame": 203,
-      "middle_frame": 201,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 272,
-      "end_frame": 275,
-      "middle_frame": 273,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 378,
-      "end_frame": 383,
-      "middle_frame": 380,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 493,
-      "end_frame": 498,
-      "middle_frame": 495,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 602,
-      "end_frame": 607,
-      "middle_frame": 604,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 675,
-      "end_frame": 678,
-      "middle_frame": 676,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 797,
-      "end_frame": 802,
-      "middle_frame": 799,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 878,
-      "end_frame": 883,
-      "middle_frame": 880,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1079,
-      "end_frame": 1084,
-      "middle_frame": 1081,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1174,
-      "end_frame": 1178,
-      "middle_frame": 1176,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1291,
-      "end_frame": 1296,
-      "middle_frame": 1293,
-      "class": "bowling"
-    },
-    {
-      "start_frame": 1399,
-      "end_frame": 1404,
-      "middle_frame": 1401,
-      "class": "bowling"
-    }
-  ],
-  "bounding_boxes": {
-    "118": [
-      {
-        "x1": 51,
-        "y1": 849,
-        "x2": 425,
-        "y2": 1857,
-        "class": "bowler"
-      }
-    ],
-    "201": [
-      {
-        "x1": 37,
-        "y1": 684,
-        "x2": 421,
-        "y2": 1800,
-        "class": "bowler"
-      }
-    ],
-    "273": [
-      {
-        "x1": 32,
-        "y1": 827,
-        "x2": 438,
-        "y2": 1846,
-        "class": "bowler"
-      }
-    ],
-    "380": [
-      {
-        "x1": 54,
-        "y1": 780,
-        "x2": 433,
-        "y2": 1799,
-        "class": "bowler"
-      }
-    ],
-    "495": [
-      {
-        "x1": 568,
-        "y1": 820,
-        "x2": 930,
-        "y2": 1848,
-        "class": "bowler"
-      }
-    ],
-    "604": [
-      {
-        "x1": 583,
-        "y1": 868,
-        "x2": 950,
-        "y2": 1869,
-        "class": "bowler"
-      }
-    ],
-    "676": [
-      {
-        "x1": 591,
-        "y1": 519,
-        "x2": 1047,
-        "y2": 1916,
-        "class": "bowler"
-      }
-    ],
-    "799": [
-      {
-        "x1": 520,
-        "y1": 856,
-        "x2": 950,
-        "y2": 1863,
-        "class": "bowler"
-      }
-    ],
-    "880": [
-      {
-        "x1": 103,
-        "y1": 855,
-        "x2": 429,
-        "y2": 1818,
-        "class": "bowler"
-      }
-    ],
-    "1081": [
-      {
-        "x1": 570,
-        "y1": 817,
-        "x2": 913,
-        "y2": 1872,
-        "class": "bowler"
-      }
-    ],
-    "1176": [
-      {
-        "x1": 551,
-        "y1": 839,
-        "x2": 930,
-        "y2": 1852,
-        "class": "bowler"
-      }
-    ],
-    "1293": [
-      {
-        "x1": 563,
-        "y1": 863,
-        "x2": 922,
-        "y2": 1864,
-        "class": "bowler"
-      }
-    ],
-    "1401": [
-      {
-        "x1": 561,
-        "y1": 859,
-        "x2": 928,
-        "y2": 1867,
-        "class": "bowler"
-      }
-    ]
+ "video": "Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted.mp4",
+ "total_frames": 1557,
+ "temporal_events": [
+  {
+   "start_frame": 116,
+   "end_frame": 120,
+   "middle_frame": 118,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 199,
+   "end_frame": 203,
+   "middle_frame": 201,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 272,
+   "end_frame": 275,
+   "middle_frame": 273,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 378,
+   "end_frame": 383,
+   "middle_frame": 380,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 493,
+   "end_frame": 498,
+   "middle_frame": 495,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 602,
+   "end_frame": 607,
+   "middle_frame": 604,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 675,
+   "end_frame": 678,
+   "middle_frame": 676,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 797,
+   "end_frame": 802,
+   "middle_frame": 799,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 878,
+   "end_frame": 883,
+   "middle_frame": 880,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1079,
+   "end_frame": 1084,
+   "middle_frame": 1081,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1174,
+   "end_frame": 1178,
+   "middle_frame": 1176,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1291,
+   "end_frame": 1296,
+   "middle_frame": 1293,
+   "class": "bowling"
+  },
+  {
+   "start_frame": 1399,
+   "end_frame": 1404,
+   "middle_frame": 1401,
+   "class": "bowling"
   }
+ ],
+ "bounding_boxes": {
+  "118": [
+   {
+    "x1": 51,
+    "y1": 849,
+    "x2": 425,
+    "y2": 1857,
+    "class": "bowler"
+   },
+   {
+    "x1": 518,
+    "y1": 613,
+    "x2": 622,
+    "y2": 921,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 493,
+    "y1": 1405,
+    "x2": 565,
+    "y2": 1880,
+    "class": "stumps"
+   }
+  ],
+  "201": [
+   {
+    "x1": 37,
+    "y1": 684,
+    "x2": 421,
+    "y2": 1800,
+    "class": "bowler"
+   },
+   {
+    "x1": 526,
+    "y1": 612,
+    "x2": 628,
+    "y2": 921,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 493,
+    "y1": 1405,
+    "x2": 565,
+    "y2": 1880,
+    "class": "stumps"
+   }
+  ],
+  "273": [
+   {
+    "x1": 32,
+    "y1": 827,
+    "x2": 438,
+    "y2": 1846,
+    "class": "bowler"
+   },
+   {
+    "x1": 528,
+    "y1": 620,
+    "x2": 629,
+    "y2": 922,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 493,
+    "y1": 1405,
+    "x2": 565,
+    "y2": 1880,
+    "class": "stumps"
+   }
+  ],
+  "380": [
+   {
+    "x1": 54,
+    "y1": 780,
+    "x2": 433,
+    "y2": 1799,
+    "class": "bowler"
+   },
+   {
+    "x1": 529,
+    "y1": 619,
+    "x2": 631,
+    "y2": 922,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 488,
+    "y1": 1406,
+    "x2": 590,
+    "y2": 1880,
+    "class": "stumps"
+   }
+  ],
+  "495": [
+   {
+    "x1": 568,
+    "y1": 820,
+    "x2": 930,
+    "y2": 1848,
+    "class": "bowler"
+   },
+   {
+    "x1": 542,
+    "y1": 625,
+    "x2": 644,
+    "y2": 929,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 488,
+    "y1": 1406,
+    "x2": 590,
+    "y2": 1880,
+    "class": "stumps"
+   }
+  ],
+  "604": [
+   {
+    "x1": 583,
+    "y1": 868,
+    "x2": 950,
+    "y2": 1869,
+    "class": "bowler"
+   },
+   {
+    "x1": 520,
+    "y1": 619,
+    "x2": 618,
+    "y2": 921,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 488,
+    "y1": 1406,
+    "x2": 590,
+    "y2": 1880,
+    "class": "stumps"
+   }
+  ],
+  "676": [
+   {
+    "x1": 591,
+    "y1": 519,
+    "x2": 1047,
+    "y2": 1916,
+    "class": "bowler"
+   },
+   {
+    "x1": 506,
+    "y1": 351,
+    "x2": 639,
+    "y2": 770,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 483,
+    "y1": 1438,
+    "x2": 578,
+    "y2": 1917,
+    "class": "stumps"
+   }
+  ],
+  "799": [
+   {
+    "x1": 520,
+    "y1": 856,
+    "x2": 950,
+    "y2": 1863,
+    "class": "bowler"
+   },
+   {
+    "x1": 528,
+    "y1": 619,
+    "x2": 629,
+    "y2": 921,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 483,
+    "y1": 1438,
+    "x2": 578,
+    "y2": 1917,
+    "class": "stumps"
+   }
+  ],
+  "880": [
+   {
+    "x1": 103,
+    "y1": 855,
+    "x2": 429,
+    "y2": 1818,
+    "class": "bowler"
+   },
+   {
+    "x1": 525,
+    "y1": 613,
+    "x2": 627,
+    "y2": 922,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 498,
+    "y1": 1405,
+    "x2": 568,
+    "y2": 1837,
+    "class": "stumps"
+   }
+  ],
+  "1081": [
+   {
+    "x1": 570,
+    "y1": 817,
+    "x2": 913,
+    "y2": 1872,
+    "class": "bowler"
+   },
+   {
+    "x1": 502,
+    "y1": 648,
+    "x2": 603,
+    "y2": 922,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 493,
+    "y1": 1405,
+    "x2": 565,
+    "y2": 1880,
+    "class": "stumps"
+   }
+  ],
+  "1176": [
+   {
+    "x1": 551,
+    "y1": 839,
+    "x2": 930,
+    "y2": 1852,
+    "class": "bowler"
+   },
+   {
+    "x1": 510,
+    "y1": 656,
+    "x2": 611,
+    "y2": 926,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 493,
+    "y1": 1405,
+    "x2": 565,
+    "y2": 1880,
+    "class": "stumps"
+   }
+  ],
+  "1293": [
+   {
+    "x1": 563,
+    "y1": 863,
+    "x2": 922,
+    "y2": 1864,
+    "class": "bowler"
+   },
+   {
+    "x1": 514,
+    "y1": 642,
+    "x2": 615,
+    "y2": 922,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 493,
+    "y1": 1405,
+    "x2": 565,
+    "y2": 1880,
+    "class": "stumps"
+   }
+  ],
+  "1401": [
+   {
+    "x1": 561,
+    "y1": 859,
+    "x2": 928,
+    "y2": 1867,
+    "class": "bowler"
+   },
+   {
+    "x1": 485,
+    "y1": 642,
+    "x2": 589,
+    "y2": 922,
+    "class": "striker",
+    "sam3_person_id": "2"
+   },
+   {
+    "x1": 493,
+    "y1": 1405,
+    "x2": 565,
+    "y2": 1880,
+    "class": "stumps"
+   }
+  ]
+ }
 }
