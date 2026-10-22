@@ -3,7 +3,9 @@
 //  CriClips
 //
 //  Runs the bundled CoreML cricket-action classifier on each camera frame.
-//  Pre-processes: crop top 32%, centered square, resize 256×256, pack NCHW float32.
+//  Pre-processes: two crops beside the calibrated stumps (StumpCalibration.swift), the right
+//  one mirrored, each resized to 160×256 and packed as one NCHW float32 batch of 2.
+//  A frame's action score is the higher of the two crops'.
 //  Sliding-window trigger: ≥4 of last 8 frames favour "action" → fires onTriggerDetected.
 //
 
@@ -11,13 +13,17 @@ import CoreML
 import AVFoundation
 import CoreImage
 import UIKit
+import Accelerate
 
 class ModelProcessor: ObservableObject {
     @Published var isModelLoaded = false
     /// Small thumbnail displayed in the live UI (updated every 4 frames).
     @Published var previewImage: UIImage?
-    /// Full 256×256 model-input preview displayed in the main UI (updated every 4 frames).
+    /// The two model-input crops side by side (left, mirrored right), shown in the main UI.
     @Published var bigPreviewImage: UIImage?
+    /// Downscaled full camera frame, published while `publishesFullFrame` is set (calibration).
+    @Published var fullFramePreview: UIImage?
+    var publishesFullFrame = false
     @Published var lastActionScore: Float = 0
     @Published var lastNoActionScore: Float = 0
 
@@ -48,6 +54,14 @@ class ModelProcessor: ObservableObject {
     /// Run inference on every Nth camera frame (1 = every frame, 2 = every other, etc.).
     @Published var inferenceFrameInterval: Int = 1
 
+    /// Where the stumps are; set by the calibration screen, read on the capture thread.
+    var stumpBox: StumpBox {
+        get { stumpLock.lock(); defer { stumpLock.unlock() }; return _stumpBox }
+        set { stumpLock.lock(); _stumpBox = newValue; stumpLock.unlock() }
+    }
+    private var _stumpBox = StumpBox.load()
+    private let stumpLock = NSLock()
+
     private var recentActionWins: [Bool] = []
     private var model: MLModel?
     private let inputFeatureName = "image"
@@ -57,6 +71,7 @@ class ModelProcessor: ObservableObject {
     private let ciContext = CIContext(options: [.useSoftwareRenderer: false])
     private var frameCounter = 0
     private var inferenceCounter = 0
+    private var fullFrameCounter = 0
 
     var onTriggerDetected: (() -> Void)?
 
@@ -71,16 +86,16 @@ class ModelProcessor: ObservableObject {
         loadQueue.async { [weak self] in
             guard let self else { return }
             for bundle in [Bundle.main, Bundle(for: ModelProcessor.self)] {
-                if let url = bundle.url(forResource: "fastvit_sa12_exp21", withExtension: "mlpackage") {
+                if let url = bundle.url(forResource: "fastvit_sa12_s04", withExtension: "mlpackage") {
                     self.tryLoad(url: url)
                     return
                 }
-                if let url = bundle.url(forResource: "fastvit_sa12_exp21", withExtension: "mlmodelc") {
+                if let url = bundle.url(forResource: "fastvit_sa12_s04", withExtension: "mlmodelc") {
                     self.tryLoad(url: url)
                     return
                 }
             }
-            print("❌ [CriClips] fastvit_sa12_exp21.mlpackage not found in bundle")
+            print("❌ [CriClips] fastvit_sa12_s04.mlpackage not found in bundle")
         }
     }
 
@@ -122,8 +137,10 @@ class ModelProcessor: ObservableObject {
     // MARK: - Frame Processing
 
     func processFrame(_ sampleBuffer: CMSampleBuffer) {
-        guard isModelLoaded, isRunning, let model else { return }
         guard let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else { return }
+        let image = CIImage(cvPixelBuffer: pixelBuffer)
+        publishFullFrameIfNeeded(image)
+        guard isModelLoaded, isRunning, let model else { return }
 
         // Throttle: skip frames according to inferenceFrameInterval
         inferenceCounter &+= 1
@@ -131,34 +148,15 @@ class ModelProcessor: ObservableObject {
 
         frameCounter &+= 1
 
-        // Build CIImage from camera pixel buffer
-        var image = CIImage(cvPixelBuffer: pixelBuffer)
-        let extent = image.extent
-        let w = extent.width
-        let h = extent.height
+        // ── Step 1: Two crops beside the stumps, 160×256 each ─────────────────
+        let crops = stumpCrops(from: image)
+        let w = StumpCrops.inputWidth, h = StumpCrops.inputHeight
 
-        // ── Step 1: Remove top 32%, keep bottom 68% ──────────────────────────
-        // CIImage origin is bottom-left, so keeping y=minY … keptHeight gives the visual bottom.
-        let keptH = h * 0.68
-        image = image.cropped(to: CGRect(x: extent.minX, y: extent.minY, width: w, height: keptH))
-
-        // ── Step 2: Centered square crop ──────────────────────────────────────
-        let cropExt = image.extent
-        let side = min(cropExt.width, cropExt.height)
-        let squareRect = CGRect(
-            x: cropExt.midX - side / 2,
-            y: cropExt.midY - side / 2,
-            width: side, height: side)
-        image = image.cropped(to: squareRect)
-
-        // ── Step 3: Resize to 256 × 256 ───────────────────────────────────────
-        let scale = 256.0 / side
-        let resized = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
-
-        // ── Step 4: Update UI preview every 4 frames ─────────────────────────
+        // ── Step 2: Update UI preview every 4 frames ─────────────────────────
         if frameCounter % 4 == 0 {
-            let targetSize = CGSize(width: 300, height: 300)
-            if let ui = renderUIImage(from: resized, targetSize: targetSize) {
+            let pair = crops.right.transformed(by: CGAffineTransform(translationX: CGFloat(w), y: 0))
+                .composited(over: crops.left)
+            if let ui = renderUIImage(from: pair, targetSize: CGSize(width: 2 * w, height: h)) {
                 DispatchQueue.main.async { [weak self] in
                     self?.bigPreviewImage = ui
                     self?.previewImage = ui
@@ -166,28 +164,67 @@ class ModelProcessor: ObservableObject {
             }
         }
 
-        // ── Step 5: Pack into NCHW float32 and run inference ──────────────────
-        guard let pb = createPixelBuffer(from: resized, width: 256, height: 256) else { return }
+        // ── Step 3: Pack both crops into one NCHW batch and run inference ─────
+        guard let left = createPixelBuffer(from: crops.left, width: w, height: h),
+              let right = createPixelBuffer(from: crops.right, width: w, height: h) else { return }
 
         visionQueue.async { [weak self] in
             guard let self else { return }
             do {
-                let inputArray = try self.makeNCHWArray(from: pb)
-                let input = try MLDictionaryFeatureProvider(dictionary: [self.inputFeatureName: inputArray])
-                let output = try model.prediction(from: input)
-
-                let outKey = output.featureNames.contains(self.outputFeatureName)
-                    ? self.outputFeatureName
-                    : (model.modelDescription.outputDescriptionsByName.keys.first ?? self.outputFeatureName)
-
-                if let fv = output.featureValue(for: outKey), let arr = fv.multiArrayValue {
-                    let noAction = Float(truncating: arr[0])
-                    let action   = Float(truncating: arr[1])
-                    self.evaluateDecision(actionScore: action, noActionScore: noAction)
-                }
+                let action = try self.predictAction(model, left, right)
+                self.evaluateDecision(actionScore: action, noActionScore: 1 - action)
             } catch {
                 print("❌ [CriClips] Prediction error: \(error)")
             }
+        }
+    }
+
+    /// Action score of a frame: the higher of its two crops' (probs is [2, 2], one row per crop).
+    private func predictAction(_ model: MLModel, _ left: CVPixelBuffer, _ right: CVPixelBuffer) throws -> Float {
+        let inputArray = try makeNCHWArray(from: [left, right])
+        let input = try MLDictionaryFeatureProvider(dictionary: [inputFeatureName: inputArray])
+        let output = try model.prediction(from: input)
+        let outKey = output.featureNames.contains(outputFeatureName)
+            ? outputFeatureName
+            : (model.modelDescription.outputDescriptionsByName.keys.first ?? outputFeatureName)
+        guard let arr = output.featureValue(for: outKey)?.multiArrayValue else {
+            throw NSError(domain: "CriClips.ModelProcessor", code: 2,
+                          userInfo: [NSLocalizedDescriptionKey: "No output \(outKey)"])
+        }
+        return max(arr[[0, 1] as [NSNumber]].floatValue, arr[[1, 1] as [NSNumber]].floatValue)
+    }
+
+    /// The two model inputs: crops either side of the stumps scaled to 160×256, the right
+    /// one mirrored so the bowler is always left of the stumps. Parts of a crop outside the
+    /// frame are black, as in training.
+    private func stumpCrops(from image: CIImage) -> (left: CIImage, right: CIImage) {
+        let size = image.extent.size
+        let rects = StumpCrops.rects(for: stumpBox, in: size)
+        let padded = image.composited(over: CIImage(color: .black))
+        let w = CGFloat(StumpCrops.inputWidth), h = CGFloat(StumpCrops.inputHeight)
+        func crop(_ r: CGRect, mirror: Bool) -> CIImage {
+            // Top-left pixel rect -> CIImage's bottom-left origin.
+            let ci = CGRect(x: r.minX, y: size.height - r.maxY, width: r.width, height: r.height).integral
+            var out = padded.cropped(to: ci)
+                .transformed(by: CGAffineTransform(translationX: -ci.minX, y: -ci.minY))
+                .applyingFilter("CILanczosScaleTransform", parameters: [
+                    kCIInputScaleKey: h / ci.height,
+                    kCIInputAspectRatioKey: (w / ci.width) / (h / ci.height)])
+                .cropped(to: CGRect(x: 0, y: 0, width: w, height: h))
+            if mirror { out = out.transformed(by: CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: w, ty: 0)) }
+            return out
+        }
+        return (crop(rects.left, mirror: false), crop(rects.right, mirror: true))
+    }
+
+    /// Full frame for the calibration screen, every 4th camera frame.
+    private func publishFullFrameIfNeeded(_ image: CIImage) {
+        guard publishesFullFrame else { return }
+        fullFrameCounter &+= 1
+        guard fullFrameCounter % 4 == 0 else { return }
+        let size = CGSize(width: 360, height: (360 * image.extent.height / image.extent.width).rounded())
+        if let ui = renderUIImage(from: image, targetSize: size) {
+            DispatchQueue.main.async { [weak self] in self?.fullFramePreview = ui }
         }
     }
 
@@ -221,9 +258,9 @@ class ModelProcessor: ObservableObject {
     /// Score a UIImage through the same CoreML pipeline as live frames.
     /// - Parameters:
     ///   - uiImage: The image to score.
-    ///   - applyPreprocessing: `true` → apply the full crop pipeline (for raw camera frames,
-    ///     e.g. debug_frame_full.png 1080×1920). `false` → feed the image as-is after
-    ///     resizing to 256×256 (for already pre-cropped inputs, e.g. debug_frame.png).
+    ///   - applyPreprocessing: `true` → a raw camera frame (e.g. debug_frame_full.png 1080×1920):
+    ///     cut the two stump crops from the current calibration. `false` → an already-cropped
+    ///     model input, resized to 160×256 and scored as both crops.
     ///   - completion: Called on the main queue with (noActionScore, actionScore).
     func scoreImage(_ uiImage: UIImage,
                     applyPreprocessing: Bool,
@@ -231,57 +268,24 @@ class ModelProcessor: ObservableObject {
         guard isModelLoaded, let model else { return }
         guard let cgImage = uiImage.cgImage else { return }
 
-        var image = CIImage(cgImage: cgImage)
-
+        let image = CIImage(cgImage: cgImage)
+        let w = StumpCrops.inputWidth, h = StumpCrops.inputHeight
+        let crops: (left: CIImage, right: CIImage)
         if applyPreprocessing {
-            let extent = image.extent
-            let w = extent.width
-            let h = extent.height
-
-            // Remove top 32%, keep bottom 68% (CIImage origin = bottom-left)
-            let keptH = h * 0.68
-            image = image.cropped(to: CGRect(x: extent.minX, y: extent.minY,
-                                             width: w, height: keptH))
-            // Centered square crop
-            let ext2 = image.extent
-            let side = min(ext2.width, ext2.height)
-            image = image.cropped(to: CGRect(x: ext2.midX - side / 2,
-                                             y: ext2.midY - side / 2,
-                                             width: side, height: side))
-            // Resize to 256×256
-            let scale = 256.0 / side
-            image = image.transformed(by: CGAffineTransform(scaleX: scale, y: scale))
+            crops = stumpCrops(from: image)
+        } else {
+            let resized = image.transformed(by: CGAffineTransform(
+                scaleX: CGFloat(w) / image.extent.width, y: CGFloat(h) / image.extent.height))
+            crops = (resized, resized)
         }
-
-        // Translate to origin so pixel buffer render lands at (0,0)
-        image = image.transformed(by: CGAffineTransform(translationX: -image.extent.origin.x,
-                                                         y: -image.extent.origin.y))
-
-        // Resize to 256×256 if not already (handles applyPreprocessing=false path)
-        if abs(image.extent.width - 256) > 0.5 || abs(image.extent.height - 256) > 0.5 {
-            let sx = 256.0 / image.extent.width
-            let sy = 256.0 / image.extent.height
-            image = image.transformed(by: CGAffineTransform(scaleX: sx, y: sy))
-            image = image.transformed(by: CGAffineTransform(translationX: -image.extent.origin.x,
-                                                             y: -image.extent.origin.y))
-        }
-
-        guard let pb = createPixelBuffer(from: image, width: 256, height: 256) else { return }
+        guard let left = createPixelBuffer(from: crops.left, width: w, height: h),
+              let right = createPixelBuffer(from: crops.right, width: w, height: h) else { return }
 
         visionQueue.async { [weak self] in
             guard let self else { return }
             do {
-                let inputArray = try self.makeNCHWArray(from: pb)
-                let input = try MLDictionaryFeatureProvider(dictionary: [self.inputFeatureName: inputArray])
-                let output = try model.prediction(from: input)
-                let outKey = output.featureNames.contains(self.outputFeatureName)
-                    ? self.outputFeatureName
-                    : (model.modelDescription.outputDescriptionsByName.keys.first ?? self.outputFeatureName)
-                if let fv = output.featureValue(for: outKey), let arr = fv.multiArrayValue {
-                    let noAction = Float(truncating: arr[0])
-                    let action   = Float(truncating: arr[1])
-                    DispatchQueue.main.async { completion(noAction, action) }
-                }
+                let action = try self.predictAction(model, left, right)
+                DispatchQueue.main.async { completion(1 - action, action) }
             } catch {
                 print("❌ [CriClips] scoreImage error: \(error)")
             }
@@ -319,37 +323,38 @@ class ModelProcessor: ObservableObject {
         return buffer
     }
 
-    /// Pack a 256×256 BGRA pixel buffer into an NCHW float32 MLMultiArray [1,3,256,256].
-    /// Applies ImageNet normalisation: (pixel/255 − mean) / std  (matches the Python export pipeline).
-    private func makeNCHWArray(from pixelBuffer: CVPixelBuffer) throws -> MLMultiArray {
-        CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
-        defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
-
-        let width       = CVPixelBufferGetWidth(pixelBuffer)
-        let height      = CVPixelBufferGetHeight(pixelBuffer)
-        let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
-        guard let base  = CVPixelBufferGetBaseAddress(pixelBuffer) else {
-            throw NSError(domain: "CriClips.ModelProcessor", code: 1,
-                          userInfo: [NSLocalizedDescriptionKey: "Nil pixel buffer base address"])
-        }
-
-        let array = try MLMultiArray(shape: [1, 3, height as NSNumber, width as NSNumber],
+    /// Pack same-sized BGRA buffers (one per crop) into an NCHW float32 batch [n, 3, H, W].
+    private func makeNCHWArray(from pixelBuffers: [CVPixelBuffer]) throws -> MLMultiArray {
+        let width  = CVPixelBufferGetWidth(pixelBuffers[0])
+        let height = CVPixelBufferGetHeight(pixelBuffers[0])
+        let array = try MLMultiArray(shape: [pixelBuffers.count as NSNumber, 3, height as NSNumber, width as NSNumber],
                                      dataType: .float32)
-        let pixels = base.assumingMemoryBound(to: UInt8.self)
+        let ptr = UnsafeMutablePointer<Float32>(OpaquePointer(array.dataPointer))
         let stride = width * height
 
-        // ImageNet normalisation constants (R, G, B order)
-        let meanR: Float32 = 0.485, meanG: Float32 = 0.456, meanB: Float32 = 0.406
-        let stdR:  Float32 = 0.229, stdG:  Float32 = 0.224, stdB:  Float32 = 0.225
+        // ImageNet normalisation, vectorised: out = px * 1/(255·std) + (−mean/std).
+        let means: [Float] = [0.485, 0.456, 0.406]          // R, G, B
+        let stds:  [Float] = [0.229, 0.224, 0.225]
+        let bgraOffset = [2, 1, 0]                          // R, G, B positions in BGRA
 
-        let ptr = UnsafeMutablePointer<Float32>(OpaquePointer(array.dataPointer))
-
-        for y in 0 ..< height {
-            for x in 0 ..< width {
-                let off = y * bytesPerRow + x * 4
-                ptr[0 * stride + y * width + x] = (Float32(pixels[off + 2]) / 255.0 - meanR) / stdR // R
-                ptr[1 * stride + y * width + x] = (Float32(pixels[off + 1]) / 255.0 - meanG) / stdG // G
-                ptr[2 * stride + y * width + x] = (Float32(pixels[off + 0]) / 255.0 - meanB) / stdB // B
+        for (n, pixelBuffer) in pixelBuffers.enumerated() {
+            CVPixelBufferLockBaseAddress(pixelBuffer, .readOnly)
+            defer { CVPixelBufferUnlockBaseAddress(pixelBuffer, .readOnly) }
+            let bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer)
+            guard let base = CVPixelBufferGetBaseAddress(pixelBuffer) else {
+                throw NSError(domain: "CriClips.ModelProcessor", code: 1,
+                              userInfo: [NSLocalizedDescriptionKey: "Nil pixel buffer base address"])
+            }
+            let pixels = base.assumingMemoryBound(to: UInt8.self)
+            for c in 0 ..< 3 {
+                var scale = Float(1.0) / (255.0 * stds[c])
+                var bias  = -means[c] / stds[c]
+                for y in 0 ..< height {
+                    let src = pixels + y * bytesPerRow + bgraOffset[c]
+                    let dst = ptr + (n * 3 + c) * stride + y * width
+                    vDSP_vfltu8(src, 4, dst, 1, vDSP_Length(width))
+                    vDSP_vsmsa(dst, 1, &scale, &bias, dst, 1, vDSP_Length(width))
+                }
             }
         }
         return array

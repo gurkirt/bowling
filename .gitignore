@@ -17,7 +17,7 @@ trainings/
 trainings_*/
 experiments/
 experiments/trainings/
-training_set_stumps/
+training_set_stumps*/
 sam3_out/
 __pycache__/
 chart.html

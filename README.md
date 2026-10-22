@@ -8,9 +8,11 @@ auto-labelling engine, training-data builders, training, analysis and export.
 
 There are two model inputs:
 
-- **Fixed crop** (deployed today, `exp21`): bottom 68% of the frame, centred square, 256×256.
-- **Stump crops** (in progress): two crops anchored on the bowler's-end stumps, one each
-  side, at a scale set by the stump height. See [Stump crops](#stump-crops).
+- **Fixed crop** (`exp21`, deployed until s04): bottom 68% of the frame, centred square, 256×256.
+- **Stump crops** (`s04`, being deployed): two crops anchored on the bowler's-end stumps,
+  one each side, at a scale set by the stump height, 160×256 each, scored as a batch of 2.
+  The apps ask the user to place a box on the stumps when the camera opens. See
+  [Stump crops](#stump-crops).
 
 ## Repo layout
 
@@ -217,6 +219,22 @@ python export_pytorch.py experiments/trainings/<round>/<tag>/.../best_model.pth 
 python export_executorch.py models/<name>.pt --backend mlpackage   # Core ML for CricReel
 python export_executorch.py models/<name>.pt --compare             # .pte XNNPACK / CoreML / mlpackage parity
 ```
+
+Stump-crop model (s04), as bundled in CriClips and CricReel:
+
+```bash
+python export_pytorch.py experiments/trainings/round4_seekfix/s04_fastvit_sa12_stumps_i01_256x160/*/best_model.pth \
+    --output models/fastvit_sa12_s04.pt --stump_geometry 2.3,0.1,3.1,0.9
+python export_executorch.py models/fastvit_sa12_s04.pt --backend mlpackage --batch 2   # on the Mac
+cp -R models/fastvit_sa12_s04.mlpackage criclips/CriClips/
+cp -R models/fastvit_sa12_s04.mlpackage CricReel/CricReel/
+```
+
+`--batch 2` fixes the input at [2, 3, 256, 160] (left crop, mirrored right crop); output
+`probs` is [2, 2] and the app takes the higher action score. The crop geometry is in the
+`.pt` (`stump_crops`) and the `.mlpackage` metadata; the apps hard-code it in
+`StumpCalibration.swift`, which also holds the default stump box (median over the
+`criclip_*` recordings).
 
 `export_pytorch.py` keeps only config, EMA weights, normalisation and class names
 (loadable with just `torch` + `timm`). `export_executorch.py` needs macOS with

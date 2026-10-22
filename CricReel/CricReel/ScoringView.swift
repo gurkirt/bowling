@@ -39,6 +39,10 @@ struct ScoringView: View {
     /// User-initiated pause: keeps the screen awake but fully stops camera + CNN.
     @State private var isManuallyPaused = false
     @State private var showingCommentary = false
+    /// Stump calibration: shown once when scoring opens, and from the menu or preview.
+    @State private var showingCalibration = false
+    @State private var calibrated = false
+    @State private var stumpBox = StumpBox.load()
 
     private var lookup: PlayerLookup { PlayerLookup(players) }
 
@@ -64,6 +68,7 @@ struct ScoringView: View {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button { showingSettings = true } label: { Label("Recording Settings", systemImage: "gearshape") }
+                    Button { showingCalibration = true } label: { Label("Calibrate Stumps", systemImage: "viewfinder") }
                     Button(role: .destructive) { finishInnings() } label: { Label("End Innings", systemImage: "flag") }
                     Button(role: .destructive) { endMatch() } label: { Label("End Match", systemImage: "flag.checkered") }
                 } label: { Image(systemName: "ellipsis.circle") }
@@ -77,7 +82,19 @@ struct ScoringView: View {
         .onChange(of: showingEntry) { _, _ in applyCaptureState() }
         .onChange(of: videoWriter.isCoolingDown) { _, _ in applyCaptureState() }
         .onChange(of: isManuallyPaused) { _, _ in applyCaptureState() }
+        .onChange(of: showingCalibration) { _, open in
+            modelProcessor.publishesFullFrame = open
+            applyCaptureState()
+        }
         .sheet(isPresented: $showingSettings) { SettingsView() }
+        .sheet(isPresented: $showingCalibration) {
+            StumpCalibrationView(frame: modelProcessor.fullFramePreview, box: $stumpBox) {
+                modelProcessor.stumpBox = stumpBox
+                calibrated = true
+                showingCalibration = false
+            }
+            .interactiveDismissDisabled()
+        }
         .sheet(isPresented: $showingBowlerPicker) { bowlerPickerSheet }
         .sheet(isPresented: $showingEntry) { entrySheet }
         .navigationDestination(isPresented: $showingCommentary) { CommentaryView(match: match) }
@@ -157,12 +174,13 @@ struct ScoringView: View {
                     ZStack {
                         if let img = modelProcessor.previewImage {
                             Image(uiImage: img).resizable().scaledToFit()
+                                .onTapGesture { showingCalibration = true }
                         } else {
                             Color.black
                         }
                         previewStatusOverlay
                     }
-                    .aspectRatio(1, contentMode: .fit)
+                    .aspectRatio(320.0 / 256.0, contentMode: .fit)  // two 160×256 crops side by side
                     .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.15)))
@@ -476,6 +494,7 @@ struct ScoringView: View {
             if s.ballsThisOver > 0 { selectedBowlerID = currentOverBowlerID(innings) }
         }
         applyCaptureState()
+        if !calibrated { showingCalibration = true }
     }
 
     private func applySettings() {
@@ -499,10 +518,11 @@ struct ScoringView: View {
     /// cooldown / manual pause / bowler selection is the biggest power saving — the
     /// tradeoff is a ~1s warm-up when capture resumes, which the scorer can offset by
     /// lowering the cooldown.
+    /// While calibrating the camera runs (the calibration screen needs frames) but the CNN doesn't.
     private func applyCaptureState() {
-        let capture = shouldCapture
+        let capture = shouldCapture && !showingCalibration
         modelProcessor.isRunning = capture
-        if capture {
+        if capture || showingCalibration {
             cameraManager.startSession()   // self-guards if already running
         } else {
             cameraManager.stopSession()    // self-guards if already stopped

@@ -14,6 +14,7 @@ optionally, the fixed-crop baseline (exp21, run on the same clips' full frames):
 
     python analysis/val_errors.py --checkpoint experiments/trainings/<round>/<tag>/.../best_model.pth \
         --baseline models/fastvit_sa12_exp21.pt
+    python analysis/val_errors.py --baseline <fixed-crop best_model.pth>   # baseline only
 """
 import argparse
 import json
@@ -133,7 +134,8 @@ def delivery_report(name, per_clip, thr, window, need, tol):
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--checkpoint", type=pathlib.Path, required=True)
+    ap.add_argument("--checkpoint", type=pathlib.Path, default=None,
+                    help="Stump-crop checkpoint; leave out to score only --baseline.")
     ap.add_argument("--frames", type=pathlib.Path, default=pathlib.Path("training_set_stumps/frames"))
     ap.add_argument("--video_dir", type=pathlib.Path, default=pathlib.Path("videos"))
     ap.add_argument("--margin", type=float, default=0.15)
@@ -142,65 +144,84 @@ def main() -> None:
     ap.add_argument("--window", type=int, default=8)
     ap.add_argument("--need", type=int, default=4)
     ap.add_argument("--tol", type=int, default=10, help="Frames around a delivery a trigger may land and still count.")
-    ap.add_argument("--out", type=pathlib.Path, default=None, help="Save per-crop scores as JSON.")
+    ap.add_argument("--out", type=pathlib.Path, default=None,
+                    help="Save per-crop scores as JSON (per-frame baseline scores if no --checkpoint).")
     args = ap.parse_args()
+    if not (args.checkpoint or args.baseline):
+        ap.error("give --checkpoint, --baseline or both")
     torch.set_num_threads(16)
 
-    model, (h, w), _ = load_model(args.checkpoint)
-    tf = T.Compose([T.Resize((h, w)), T.ToTensor(), NORM])
     stems = sorted({d.name[:-3] for d in args.frames.iterdir() if d.name.endswith(("__L", "__R"))
                     and d.name[:-3].endswith("_val")})
-    print(f"{args.checkpoint}\n{len(stems)} _val clips, on {DEVICE}")
-
-    rows, per_clip = [], {}
-    for stem in stems:
-        anno = load_annotation(args.video_dir / f"{stem}.json")
-        events, _ = video_events(anno)
-        wins = [(a - POS_LEAD, b) for a, b, *_ in events]
-        sides = {(a - POS_LEAD, b): s for a, b, _, _, s in events}
-        fps = video_fps(anno["_video_path"])
-        side_scores = {}
-        for side, suf in (("left", "__L"), ("right", "__R")):
-            files = sorted(args.frames.glob(f"{stem}{suf}/*.jpg"))
-            idx = [int(FRAME_RE.search(f.name).group(1)) for f in files]
-            labels = [FRAME_RE.search(f.name).group(2) == "true" for f in files]
-            probs = score(model, [tf(centre_crop(Image.open(f).convert("RGB"), args.margin)) for f in files])
-            side_scores[side] = probs
-            for i, y, p in zip(idx, labels, probs):
-                nearest = min(wins, key=lambda wd: dist_to_window(i, [wd]))
-                rows.append({"stem": stem, "frame": i, "side": side, "label": y, "p": float(p),
-                             "bowler_side": side == sides[nearest], "dist": dist_to_window(i, [nearest]),
-                             "pos_in_window": i - nearest[0], "window_len": nearest[1] - nearest[0] + 1})
-        per_clip[stem] = (np.maximum(side_scores["left"], side_scores["right"]), wins, fps)
-        print(f"  {stem}: {len(side_scores['left'])} frames scored")
-
     thr = args.threshold
-    fp = [r for r in rows if not r["label"] and r["p"] >= thr]
-    fn = [r for r in rows if r["label"] and r["p"] < thr]
-    tp = [r for r in rows if r["label"] and r["p"] >= thr]
-    print(f"\n[stump crops] per crop at {thr}: TP {len(tp)}  FP {len(fp)}  FN {len(fn)}  "
-          f"precision {len(tp) / max(1, len(tp) + len(fp)):.3f}  recall {len(tp) / max(1, len(tp) + len(fn)):.3f}")
-    print("  false positives by side and distance from the delivery window (frames):")
     buckets = [(0, 0, "inside window"), (1, 3, "1-3"), (4, 10, "4-10"), (11, 30, "11-30"), (31, 10**9, ">30")]
-    for bs in (True, False):
-        sub = [r for r in fp if r["bowler_side"] == bs]
-        c = Counter(next(n for lo, hi, n in buckets if lo <= r["dist"] <= hi) for r in sub)
-        print(f"    {'bowler side' if bs else 'other side '}: {len(sub):3d}  " +
-              "  ".join(f"{n}: {c.get(n, 0)}" for _, _, n in buckets))
-    by_clip = Counter(r["stem"] for r in fp)
-    print("  false positives per clip:", dict(by_clip.most_common()))
-    print("  misses by position in the window (0 = start_frame-2):")
-    pos = Counter((r["pos_in_window"], r["window_len"]) for r in fn)
-    rel = Counter("first 3 frames" if r["pos_in_window"] < 3 else
-                  "last 2 frames" if r["pos_in_window"] >= r["window_len"] - 2 else "middle" for r in fn)
-    print(f"    {dict(rel)}")
-    per_ev = defaultdict(lambda: [0, 0])
-    for r in rows:
-        if r["label"]:
-            per_ev[(r["stem"], r["frame"] - r["pos_in_window"])][0] += 1
-            per_ev[(r["stem"], r["frame"] - r["pos_in_window"])][1] += r["p"] < thr
-    print("    missed frames per delivery:", {f"{s}@{a}": f"{m}/{n}" for (s, a), (n, m) in sorted(per_ev.items()) if m})
-    delivery_report("stump crops", per_clip, thr, args.window, args.need, args.tol)
+    rows = []
+
+    if args.checkpoint:
+        model, (h, w), _ = load_model(args.checkpoint)
+        tf = T.Compose([T.Resize((h, w)), T.ToTensor(), NORM])
+        print(f"{args.checkpoint}\n{len(stems)} _val clips, on {DEVICE}")
+
+        per_clip = {}
+        for stem in stems:
+            anno = load_annotation(args.video_dir / f"{stem}.json")
+            events, _ = video_events(anno)
+            wins = [(a - POS_LEAD, b) for a, b, *_ in events]
+            sides = {(a - POS_LEAD, b): s for a, b, _, _, s in events}
+            fps = video_fps(anno["_video_path"])
+            side_scores = {}
+            for side, suf in (("left", "__L"), ("right", "__R")):
+                files = sorted(args.frames.glob(f"{stem}{suf}/*.jpg"))
+                idx = [int(FRAME_RE.search(f.name).group(1)) for f in files]
+                labels = [FRAME_RE.search(f.name).group(2) == "true" for f in files]
+                probs = score(model, [tf(centre_crop(Image.open(f).convert("RGB"), args.margin)) for f in files])
+                side_scores[side] = probs
+                for i, y, p in zip(idx, labels, probs):
+                    nearest = min(wins, key=lambda wd: dist_to_window(i, [wd]))
+                    rows.append({"stem": stem, "frame": i, "side": side, "label": y, "p": float(p),
+                                 "bowler_side": side == sides[nearest], "dist": dist_to_window(i, [nearest]),
+                                 "pos_in_window": i - nearest[0], "window_len": nearest[1] - nearest[0] + 1})
+            per_clip[stem] = (np.maximum(side_scores["left"], side_scores["right"]), wins, fps)
+            print(f"  {stem}: {len(side_scores['left'])} frames scored")
+
+        fp = [r for r in rows if not r["label"] and r["p"] >= thr]
+        fn = [r for r in rows if r["label"] and r["p"] < thr]
+        tp = [r for r in rows if r["label"] and r["p"] >= thr]
+        print(f"\n[stump crops] per crop at {thr}: TP {len(tp)}  FP {len(fp)}  FN {len(fn)}  "
+              f"precision {len(tp) / max(1, len(tp) + len(fp)):.3f}  recall {len(tp) / max(1, len(tp) + len(fn)):.3f}")
+        # Per frame, as the app scores it and as the fixed-crop baseline is counted: the frame
+        # fires if either crop does, and is positive if either crop is.
+        frames = defaultdict(lambda: [False, 0.0])
+        for r in rows:
+            f = frames[(r["stem"], r["frame"])]
+            f[0] |= r["label"]
+            f[1] = max(f[1], r["p"])
+        ftp = sum(y and p >= thr for y, p in frames.values())
+        ffp = sum(not y and p >= thr for y, p in frames.values())
+        ffn = sum(y and p < thr for y, p in frames.values())
+        fprec, frec = ftp / max(1, ftp + ffp), ftp / max(1, ftp + ffn)
+        print(f"[stump crops] per frame (max of both crops) at {thr}: TP {ftp}  FP {ffp}  FN {ffn}  "
+              f"precision {fprec:.3f}  recall {frec:.3f}  F1 {2 * fprec * frec / max(1e-9, fprec + frec):.3f}")
+        print("  false positives by side and distance from the delivery window (frames):")
+        for bs in (True, False):
+            sub = [r for r in fp if r["bowler_side"] == bs]
+            c = Counter(next(n for lo, hi, n in buckets if lo <= r["dist"] <= hi) for r in sub)
+            print(f"    {'bowler side' if bs else 'other side '}: {len(sub):3d}  " +
+                  "  ".join(f"{n}: {c.get(n, 0)}" for _, _, n in buckets))
+        by_clip = Counter(r["stem"] for r in fp)
+        print("  false positives per clip:", dict(by_clip.most_common()))
+        print("  misses by position in the window (0 = start_frame-2):")
+        pos = Counter((r["pos_in_window"], r["window_len"]) for r in fn)
+        rel = Counter("first 3 frames" if r["pos_in_window"] < 3 else
+                      "last 2 frames" if r["pos_in_window"] >= r["window_len"] - 2 else "middle" for r in fn)
+        print(f"    {dict(rel)}")
+        per_ev = defaultdict(lambda: [0, 0])
+        for r in rows:
+            if r["label"]:
+                per_ev[(r["stem"], r["frame"] - r["pos_in_window"])][0] += 1
+                per_ev[(r["stem"], r["frame"] - r["pos_in_window"])][1] += r["p"] < thr
+        print("    missed frames per delivery:", {f"{s}@{a}": f"{m}/{n}" for (s, a), (n, m) in sorted(per_ev.items()) if m})
+        delivery_report("stump crops", per_clip, thr, args.window, args.need, args.tol)
 
     if args.baseline:
         import cv2
@@ -231,14 +252,15 @@ def main() -> None:
         tp = sum(r["label"] and r["p"] >= thr for r in b_rows)
         fpb = [r for r in b_rows if not r["label"] and r["p"] >= thr]
         fnb = sum(r["label"] and r["p"] < thr for r in b_rows)
-        print(f"\n[baseline {args.baseline.name}] per frame at {thr}: TP {tp}  FP {len(fpb)}  FN {fnb}  "
-              f"precision {tp / max(1, tp + len(fpb)):.3f}  recall {tp / max(1, tp + fnb):.3f}")
+        bp, br = tp / max(1, tp + len(fpb)), tp / max(1, tp + fnb)
+        print(f"\n[baseline {args.baseline}] per frame at {thr}: TP {tp}  FP {len(fpb)}  FN {fnb}  "
+              f"precision {bp:.3f}  recall {br:.3f}  F1 {2 * bp * br / max(1e-9, bp + br):.3f}")
         c = Counter(next(n for lo, hi, n in buckets if lo <= r["dist"] <= hi) for r in fpb)
         print("  false positives by distance:", "  ".join(f"{n}: {c.get(n, 0)}" for _, _, n in buckets))
         delivery_report(f"baseline {args.baseline.name}", b_clip, thr, args.window, args.need, args.tol)
 
     if args.out:
-        json.dump(rows, open(args.out, "w"))
+        json.dump(rows if args.checkpoint else b_rows, open(args.out, "w"))
 
 
 if __name__ == "__main__":

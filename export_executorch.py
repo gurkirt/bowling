@@ -55,6 +55,7 @@ def load_checkpoint(model_path: pathlib.Path) -> Tuple[Dict[str, Any], Dict[str,
             "Checkpoint contains neither 'config' nor 'args'. Cannot determine model configuration."
         )
 
+    config["stump_crops"] = checkpoint.get("stump_crops")
     print("Model configuration:")
     print(f"  Architecture: {config['model_name']}")
     print(f"  Input size: {config['input_width']}x{config['input_height']}")
@@ -223,8 +224,9 @@ def export_to_mlpackage(
     input_height = config["input_height"]
     input_width = config["input_width"]
 
+    batch = config.get("batch", 1)
     print("\nPreparing for Core ML (.mlpackage / MLProgram) conversion...")
-    print(f"Input shape: (1, 3, {input_height}, {input_width})")
+    print(f"Input shape: ({batch}, 3, {input_height}, {input_width})")
     print(f"Precision: {'float16' if use_fp16 else 'float32'}")
 
     compute_unit_map = {
@@ -241,7 +243,7 @@ def export_to_mlpackage(
           f"{'yes' if compute_unit in ('all', 'ane') else 'no'})")
     print(f"CoreML minimum_deployment_target: iOS{min_ios}")
 
-    example_input = torch.rand(1, 3, input_height, input_width)
+    example_input = torch.rand(batch, 3, input_height, input_width)
     print("Tracing model with torch.jit.trace...")
     with torch.no_grad():
         traced = torch.jit.trace(model.eval(), example_input)
@@ -256,6 +258,15 @@ def export_to_mlpackage(
         compute_units=ct_compute_unit,
         minimum_deployment_target=ct_target,
     )
+
+    # Read by the apps: preprocessing and, for stump-crop models, the crop geometry.
+    meta = {"output_name": "probs", "input_layout": "NCHW float32, ImageNet-normalised RGB",
+            "batch": str(batch)}
+    if config.get("stump_crops"):
+        g = config["stump_crops"]["geometry_stump_heights"]
+        meta.update({f"stump_{k}": str(v) for k, v in g.items()})
+        meta["stump_right_crop_mirrored"] = "true"
+    mlmodel.user_defined_metadata.update(meta)
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
     mlmodel.save(str(output_path))
@@ -443,6 +454,12 @@ def main() -> None:
         help="Export all three targets (xnnpack .pte, coreml .pte, mlpackage) and compare their outputs against the fp32 PyTorch model. Backends unavailable in this environment are skipped.",
     )
     parser.add_argument(
+        "--batch",
+        type=int,
+        default=1,
+        help="Fixed batch size of the .mlpackage input. Use 2 for a stump-crop model so one call scores both side crops. Default: 1.",
+    )
+    parser.add_argument(
         "--no-validate",
         action="store_true",
         help="Skip validation of the exported model.",
@@ -465,6 +482,7 @@ def main() -> None:
     try:
         checkpoint, config = load_checkpoint(args.model_path)
         model = create_model(checkpoint, config, reparameterize=not args.no_reparameterize)
+        config["batch"] = args.batch
 
         if args.compare:
             compare_all_models(
@@ -509,7 +527,7 @@ def main() -> None:
                 print("\nValidating Core ML model...")
                 import numpy as np
 
-                test_input = torch.rand(1, 3, config["input_height"], config["input_width"]).numpy()
+                test_input = torch.rand(args.batch, 3, config["input_height"], config["input_width"]).numpy()
                 out = _run_mlpackage_model(output_path, test_input)
                 print("Validation successful!")
                 print(f"  probabilities: {np.asarray(out).flatten().tolist()}")
