@@ -123,6 +123,9 @@ class VideoWriter: ObservableObject {
                 }
 
             case .buffering:
+                // The camera is stopped during cooldown (ScoringView), so no frames arrive
+                // then — the ring simply refills over the pre-trigger span once capture
+                // resumes, and arms when full.
                 let ts = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
 
                 // Initialise pool on first frame

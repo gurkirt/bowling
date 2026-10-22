@@ -27,21 +27,23 @@ final class HighlightBuilder: ObservableObject {
 
     private init() {}
 
-    /// Auto reel for a completed over (its 4s/6s/wickets).
-    func buildOverReel(match: Match, innings: Innings, overNumber: Int, lookup: PlayerLookup) {
-        let clips = reelClips(from: innings.orderedDeliveries.filter {
-            $0.overNumber == overNumber && !$0.highlightTags.isEmpty
-        }, match: match, lookup: lookup)
+    /// Innings highlights reel, rebuilt at each over end from every tagged delivery so
+    /// far. Always writes the same file — "<TEAM>_innings.mp4" — so it grows in place.
+    func buildInningsReel(match: Match, innings: Innings, lookup: PlayerLookup) {
+        let clips = reelClips(from: innings.orderedDeliveries.filter { !$0.highlightTags.isEmpty },
+                              match: match, lookup: lookup)
         guard !clips.isEmpty else { return }
-        let out = ClipStore.highlightsDirectory
-            .appendingPathComponent("over_\(innings.order)_\(overNumber + 1)_\(shortID()).mp4")
-        render(clips: clips, output: out, doneMessage: "Over \(overNumber + 1) reel ready")
+        let team = match.teamReelName(isTeamA: innings.battingTeamIsA)
+            .replacingOccurrences(of: " ", with: "")
+        let out = ClipStore.highlightsDirectory.appendingPathComponent("\(team)_innings.mp4")
+        render(clips: clips, output: out, doneMessage: "\(team) innings reel updated")
     }
 
     /// Build a reel from explicit clips (gathered by the caller). Returns the URL, or nil.
+    /// The name is used as-is ("<name>.mp4") and overwrites any previous build.
     func buildReel(clips: [ReelClip], name: String) async -> URL? {
         guard !clips.isEmpty else { return nil }
-        let out = ClipStore.highlightsDirectory.appendingPathComponent("\(name)_\(shortID()).mp4")
+        let out = ClipStore.highlightsDirectory.appendingPathComponent("\(name).mp4")
         isBuilding = true
         statusMessage = "Building reel…"
         do {
@@ -182,92 +184,175 @@ final class HighlightBuilder: ObservableObject {
         parentLayer.addSublayer(videoLayer)
 
         let totalSeconds = CMTimeGetSeconds(total)
+        let revealDelay = SettingsStore.shared.overlayRevealDelay
         for seg in segments {
             let ss = CMTimeGetSeconds(seg.start)
             let ee = ss + CMTimeGetSeconds(seg.duration)
-            let card = makeCard(seg.clip.info, renderSize: renderSize,
-                                segStart: ss, segEnd: ee, total: totalSeconds)
-            parentLayer.addSublayer(card)
+            let overlay = makeOverlay(seg.clip.info, renderSize: renderSize,
+                                      segStart: ss, segEnd: ee, total: totalSeconds,
+                                      revealDelay: revealDelay)
+            parentLayer.addSublayer(overlay)
         }
         return (parentLayer, videoLayer)
     }
 
-    /// A caption card near the TOP (matching in-app playback). Score row flips from
-    /// before-this-ball to after-this-ball; only the outcome row animates in.
+    /// Full-frame overlay for one clip segment, mirroring the in-app design:
+    /// white score chips along the top ([accent bar][team][score][overs] … [opponent]
+    /// [score]), "Bowler → Batter" centred until the reveal, then the result in big
+    /// white letters mid-frame. Score AND overs chips flip together at the reveal,
+    /// `revealDelay` seconds in, capped at 1s before the segment ends.
     @MainActor
-    private static func makeCard(_ info: OverlayInfo, renderSize: CGSize,
-                                 segStart: Double, segEnd: Double, total: Double) -> CALayer {
+    private static func makeOverlay(_ info: OverlayInfo, renderSize: CGSize,
+                                    segStart: Double, segEnd: Double, total: Double,
+                                    revealDelay: Double) -> CALayer {
         let W = renderSize.width, H = renderSize.height
-        let cardW = W * 0.66, cardH = H * 0.155
-        let cardX = (W - cardW) / 2
 
-        let card = CALayer()
-        // CoreAnimation origin is bottom-left → high y = visually near the top; centered.
-        card.frame = CGRect(x: cardX, y: H * 0.80, width: cardW, height: cardH)
-        card.backgroundColor = UIColor.black.withAlphaComponent(0.55).cgColor
-        card.cornerRadius = H * 0.012
-        card.masksToBounds = true
-        card.opacity = 0
+        let container = CALayer()
+        container.frame = CGRect(origin: .zero, size: renderSize)
+        container.opacity = 0
 
-        // Accent bar down the left edge — colour-codes fours/sixes/wickets like the app UI.
-        let accentBar = CALayer()
-        accentBar.frame = CGRect(x: 0, y: 0, width: max(3, cardW * 0.012), height: cardH)
-        accentBar.backgroundColor = info.accent.uiColor.cgColor
-        card.addSublayer(accentBar)
+        // ── Score chips: two rows each side, inset toward the middle ─────────
+        // Row 1: team name (bigger — max six letters). Row 2: score + overs boxes.
+        // Sized to match the in-app clip overlay proportions.
+        let teamChipH = H * 0.048
+        let chipH = H * 0.040
+        let teamFont = UIFont.systemFont(ofSize: H * 0.027, weight: .bold)
+        let chipFont = UIFont.monospacedDigitSystemFont(ofSize: H * 0.022, weight: .semibold)
+        let margin = W * 0.07
+        let gap = W * 0.012
+        let rowGap = H * 0.008
+        let row1Y = H - H * 0.045 - teamChipH   // CA origin is bottom-left
+        let row2Y = row1Y - rowGap - chipH
 
-        let textX: CGFloat = 10
-        let textW = cardW - 20
+        // Left: batting team above, score + overs (both flip at reveal) beneath.
+        let teamChip = chip(info.battingTeam, font: teamFont, height: teamChipH)
+        teamChip.frame.origin = CGPoint(x: margin, y: row1Y)
+        container.addSublayer(teamChip)
 
-        // Row 3 (outcome) — the only animated row.
-        let outcome = textLayer(info.outcome, size: H * 0.030, weight: .heavy, color: info.accent.uiColor)
-        outcome.alignmentMode = .center
-        outcome.frame = CGRect(x: textX, y: cardH * 0.06, width: textW, height: cardH * 0.36)
-        card.addSublayer(outcome)
+        let scorePair = flipChipPair(before: info.scoreBefore, after: info.scoreAfter,
+                                     font: chipFont, height: chipH, at: CGPoint(x: margin, y: row2Y))
+        container.addSublayer(scorePair.before)
+        container.addSublayer(scorePair.after)
 
-        // Row 2 (delivery) — static.
-        let delivery = textLayer(info.delivery, size: H * 0.022, weight: .medium, color: .white)
-        delivery.alignmentMode = .center
-        delivery.frame = CGRect(x: textX, y: cardH * 0.42, width: textW, height: cardH * 0.24)
-        card.addSublayer(delivery)
+        let oversX = margin + scorePair.before.frame.width + gap
+        let oversPair = flipChipPair(before: info.oversBefore, after: info.oversAfter,
+                                     font: chipFont, height: chipH, at: CGPoint(x: oversX, y: row2Y))
+        container.addSublayer(oversPair.before)
+        container.addSublayer(oversPair.after)
 
-        // Row 1 (score) — static position, flips before → after in place.
-        let scoreFrame = CGRect(x: textX, y: cardH * 0.66, width: textW, height: cardH * 0.30)
-        let scoreBefore = textLayer(info.scoreBefore, size: H * 0.024, weight: .semibold, color: .white)
-        let scoreAfter = textLayer(info.scoreAfter, size: H * 0.024, weight: .semibold, color: .white)
-        scoreBefore.alignmentMode = .center
-        scoreAfter.alignmentMode = .center
-        scoreBefore.frame = scoreFrame
-        scoreAfter.frame = scoreFrame
-        scoreAfter.opacity = 0
-        card.addSublayer(scoreBefore)
-        card.addSublayer(scoreAfter)
+        // Right: opponent name above, their score beneath (in the chase) — mirrored.
+        let oppChip = chip(info.opponent, font: teamFont, height: teamChipH)
+        oppChip.frame.origin = CGPoint(x: W - margin - oppChip.frame.width, y: row1Y)
+        container.addSublayer(oppChip)
+        if let s = info.opponentScore {
+            let c = chip(s, font: chipFont, height: chipH)
+            c.frame.origin = CGPoint(x: W - margin - c.frame.width, y: row2Y)
+            container.addSublayer(c)
+        }
 
+        // ── Centre: delivery until the reveal, then the big result ──────────
+        // Delivery / result sit 22% of the way down the frame (CA y is from the
+        // bottom, so their centre is at 0.78 · H), clear of the action.
+        let textCenterY = H * 0.78
+        let deliveryFont = UIFont.systemFont(ofSize: H * 0.029, weight: .semibold)
+        let delivery = glowText(info.delivery, font: deliveryFont)
+        delivery.frame = CGRect(x: W * 0.05, y: textCenterY - deliveryFont.lineHeight / 2,
+                                width: W * 0.9, height: deliveryFont.lineHeight * 1.2)
+        container.addSublayer(delivery)
+
+        // The reveal carries the result colour in its text (white for plain runs).
+        let resultColor: UIColor = info.accent == .neutral ? .white : info.accent.uiColor
+        let resultSize = info.result.count > 8 ? H * 0.052 : H * 0.075
+        let resultFont = UIFont.systemFont(ofSize: resultSize, weight: .heavy)
+        let result = glowText(info.result, font: resultFont, color: resultColor)
+        result.frame = CGRect(x: W * 0.05, y: textCenterY - resultFont.lineHeight / 2,
+                              width: W * 0.9, height: resultFont.lineHeight * 1.2)
+        result.opacity = 0
+        container.addSublayer(result)
+
+        // ── Timing ───────────────────────────────────────────────────────────
+        let segDur = segEnd - segStart
+        let revealAbs = segStart + min(max(0.2, revealDelay), max(0.2, segDur - 1.0))
         func n(_ t: Double) -> Double { max(0, min(1, t / total)) }
         let s = n(segStart), e = n(segEnd)
-        let flip = n(min(segStart + 1.0, segEnd - 0.05))
-        let reveal = n(segStart + 0.35)
+        let r = n(revealAbs)
+        let rRamp = n(min(revealAbs + 0.25, segEnd))
 
-        // Card visible for the whole segment (hard cut in/out) — reliable in this pipeline.
-        card.add(opacityKeyframe([0, 0, 1, 1, 0, 0], [0, s, s, e, e, 1], total, .discrete), forKey: "vis")
+        // Whole overlay visible only during its segment (hard cut — reliable here).
+        container.add(opacityKeyframe([0, 0, 1, 1, 0, 0], [0, s, s, e, e, 1], total, .discrete), forKey: "vis")
 
-        // Score flip (same discrete technique as the visibility → reliable).
-        scoreBefore.add(opacityKeyframe([0, 0, 1, 1, 0, 0], [0, s, s, flip, flip, 1], total, .discrete), forKey: "sb")
-        scoreAfter.add(opacityKeyframe([0, 0, 1, 1, 0, 0], [0, flip, flip, e, e, 1], total, .discrete), forKey: "sa")
+        // Before → after flips at the reveal: score, overs, delivery→result.
+        let preKeys: [Double] = [0, s, s, r, r, 1]
+        let postKeys: [Double] = [0, r, r, e, e, 1]
+        let vals: [Double] = [0, 0, 1, 1, 0, 0]
+        scorePair.before.add(opacityKeyframe(vals, preKeys, total, .discrete), forKey: "f")
+        oversPair.before.add(opacityKeyframe(vals, preKeys, total, .discrete), forKey: "f")
+        delivery.add(opacityKeyframe(vals, preKeys, total, .discrete), forKey: "f")
+        scorePair.after.add(opacityKeyframe(vals, postKeys, total, .discrete), forKey: "f")
+        oversPair.after.add(opacityKeyframe(vals, postKeys, total, .discrete), forKey: "f")
+        // The result pops with a quick fade rather than a hard cut.
+        result.add(opacityKeyframe(vals, [0, r, rRamp, e, e, 1], total, .linear), forKey: "f")
 
-        // Row 3 entrance: fade + slide in.
-        outcome.add(opacityKeyframe([0, 0, 1, 1, 0, 0], [0, s, reveal, e, e, 1], total, .linear), forKey: "oo")
-        let restX = outcome.position.x
-        let slide = CAKeyframeAnimation(keyPath: "position.x")
-        slide.values = [restX - cardW * 0.10, restX - cardW * 0.10, restX, restX]
-        slide.keyTimes = [0, s, reveal, 1].map { NSNumber(value: $0) }
-        slide.calculationMode = .linear
-        slide.beginTime = AVCoreAnimationBeginTimeAtZero
-        slide.duration = total
-        slide.isRemovedOnCompletion = false
-        slide.fillMode = .both
-        outcome.add(slide, forKey: "os")
+        return container
+    }
 
-        return card
+    /// A white rounded chip with centred black text. Sharp at export resolution.
+    @MainActor
+    private static func chip(_ text: String, font: UIFont, height: CGFloat,
+                             minWidth: CGFloat = 0) -> CALayer {
+        let padH = height * 0.38
+        let textW = ceil((text as NSString).size(withAttributes: [.font: font]).width)
+        let w = max(textW + padH * 2, minWidth)
+        let layer = CALayer()
+        layer.frame = CGRect(x: 0, y: 0, width: w, height: height)
+        layer.backgroundColor = UIColor.white.cgColor
+        layer.cornerRadius = height * 0.2
+        let t = CATextLayer()
+        t.contentsScale = 3
+        t.alignmentMode = .center
+        t.isWrapped = false
+        t.string = NSAttributedString(string: text, attributes: [
+            .font: font, .foregroundColor: UIColor.black])
+        t.frame = CGRect(x: 0, y: (height - font.lineHeight) / 2, width: w, height: font.lineHeight)
+        layer.addSublayer(t)
+        return layer
+    }
+
+    /// Two same-width chips stacked at one position; caller animates the flip.
+    @MainActor
+    private static func flipChipPair(before: String, after: String, font: UIFont,
+                                     height: CGFloat, at origin: CGPoint)
+        -> (before: CALayer, after: CALayer) {
+        let wB = ceil((before as NSString).size(withAttributes: [.font: font]).width)
+        let wA = ceil((after as NSString).size(withAttributes: [.font: font]).width)
+        let w = max(wB, wA) + height * 0.38 * 2
+        let b = chip(before, font: font, height: height, minWidth: w)
+        let a = chip(after, font: font, height: height, minWidth: w)
+        b.frame.origin = origin
+        a.frame.origin = origin
+        a.opacity = 0
+        return (b, a)
+    }
+
+    /// Bright text with a soft drop shadow for legibility over video. No stroke —
+    /// strokes muddy the glyphs at export resolution.
+    @MainActor
+    private static func glowText(_ string: String, font: UIFont,
+                                 color: UIColor = .white) -> CATextLayer {
+        let layer = CATextLayer()
+        layer.contentsScale = 3
+        layer.alignmentMode = .center
+        layer.isWrapped = false
+        layer.truncationMode = .end
+        let shadow = NSShadow()
+        shadow.shadowColor = UIColor.black.withAlphaComponent(0.9)
+        shadow.shadowBlurRadius = 14
+        shadow.shadowOffset = CGSize(width: 0, height: 3)
+        layer.string = NSAttributedString(string: string, attributes: [
+            .font: font,
+            .foregroundColor: color,
+            .shadow: shadow])
+        return layer
     }
 
     private static func opacityKeyframe(_ values: [Double], _ keyTimes: [Double],
@@ -281,26 +366,6 @@ final class HighlightBuilder: ObservableObject {
         a.isRemovedOnCompletion = false
         a.fillMode = .both
         return a
-    }
-
-    @MainActor
-    private static func textLayer(_ string: String, size: CGFloat,
-                                  weight: UIFont.Weight, color: UIColor) -> CATextLayer {
-        let layer = CATextLayer()
-        layer.contentsScale = 2
-        layer.alignmentMode = .left
-        layer.isWrapped = false
-        layer.truncationMode = .end
-        let shadow = NSShadow()
-        shadow.shadowColor = UIColor.black.withAlphaComponent(0.9)
-        shadow.shadowBlurRadius = 4
-        shadow.shadowOffset = CGSize(width: 0, height: 1)
-        layer.string = NSAttributedString(string: string, attributes: [
-            .font: UIFont.systemFont(ofSize: size, weight: weight),
-            .foregroundColor: color,
-            .strokeColor: UIColor.black, .strokeWidth: -2.0,
-            .shadow: shadow])
-        return layer
     }
 
     enum ReelError: LocalizedError {

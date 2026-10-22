@@ -34,9 +34,9 @@
 		BFIL025 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF025 /* SettingsView.swift */; };
 		BFIL026 /* SettingsStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF026 /* SettingsStore.swift */; };
 		BFIL027 /* MiniScoreboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF027 /* MiniScoreboard.swift */; };
-		BFIL030 /* ClipOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF030 /* ClipOverlay.swift */; };
 		BFIL028 /* DeliveryFormatting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF028 /* DeliveryFormatting.swift */; };
 		BFIL029 /* ScoringEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF029 /* ScoringEntryView.swift */; };
+		BFIL030 /* ClipOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF030 /* ClipOverlay.swift */; };
 		BFIL050 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FREF050 /* Assets.xcassets */; };
 		BFIL051 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FREF051 /* Preview Assets.xcassets */; };
 		BFIL052 /* fastvit_sa12_exp21.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = FREF052 /* fastvit_sa12_exp21.mlpackage */; };
@@ -49,13 +49,11 @@
 			containerPortal = PRJ0000001 /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = TGT0000001;
-			remoteInfo = "CricReel";
+			remoteInfo = CricReel;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		PROD000001 /* CricReel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CricReel.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		PROD000002 /* CricReelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CricReelTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		FREF001 /* CricReelApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CricReelApp.swift; sourceTree = "<group>"; };
 		FREF002 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
 		FREF003 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
@@ -83,13 +81,15 @@
 		FREF025 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		FREF026 /* SettingsStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsStore.swift; sourceTree = "<group>"; };
 		FREF027 /* MiniScoreboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniScoreboard.swift; sourceTree = "<group>"; };
-		FREF030 /* ClipOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipOverlay.swift; sourceTree = "<group>"; };
 		FREF028 /* DeliveryFormatting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeliveryFormatting.swift; sourceTree = "<group>"; };
 		FREF029 /* ScoringEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEntryView.swift; sourceTree = "<group>"; };
+		FREF030 /* ClipOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClipOverlay.swift; sourceTree = "<group>"; };
 		FREF050 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FREF051 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		FREF052 /* fastvit_sa12_exp21.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = fastvit_sa12_exp21.mlpackage; sourceTree = "<group>"; };
 		FREF060 /* ScoringEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngineTests.swift; sourceTree = "<group>"; };
+		PROD000001 /* CricReel.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CricReel.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		PROD000002 /* CricReelTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CricReelTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -165,7 +165,7 @@
 				FREF050 /* Assets.xcassets */,
 				GRP0000004 /* Preview Content */,
 			);
-			path = "CricReel";
+			path = CricReel;
 			sourceTree = "<group>";
 		};
 		GRP0000004 /* Preview Content */ = {
@@ -181,7 +181,7 @@
 			children = (
 				FREF060 /* ScoringEngineTests.swift */,
 			);
-			path = "CricReelTests";
+			path = CricReelTests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -199,8 +199,8 @@
 			);
 			dependencies = (
 			);
-			name = "CricReel";
-			productName = "CricReel";
+			name = CricReel;
+			productName = CricReel;
 			productReference = PROD000001 /* CricReel.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -217,8 +217,8 @@
 			dependencies = (
 				DEP0000001 /* PBXTargetDependency */,
 			);
-			name = "CricReelTests";
-			productName = "CricReelTests";
+			name = CricReelTests;
+			productName = CricReelTests;
 			productReference = PROD000002 /* CricReelTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
@@ -430,6 +430,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"CricReel/Preview Content\"";
@@ -447,8 +448,9 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.cricreel.app";
+				PRODUCT_BUNDLE_IDENTIFIER = com.cricreel.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -478,7 +480,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = "@executable_path/Frameworks";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.cricreel.app";
+				PRODUCT_BUNDLE_IDENTIFIER = com.cricreel.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -498,7 +500,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.cricreel.app.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.cricreel.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -520,7 +522,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.cricreel.app.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.cricreel.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";

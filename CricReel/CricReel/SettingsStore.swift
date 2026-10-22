@@ -42,6 +42,10 @@ final class SettingsStore: ObservableObject {
     @Published var windowSize: Int { didSet { persist() } }
     @Published var requiredActionCount: Int { didSet { persist() } }
 
+    /// Seconds into each highlight clip before the result (badge + score change)
+    /// appears. Capped at 1s before the clip ends when burned in.
+    @Published var overlayRevealDelay: Double { didSet { persist() } }
+
     private let d = UserDefaults.standard
 
     private init() {
@@ -54,6 +58,7 @@ final class SettingsStore: ObservableObject {
         scoreThreshold = d.object(forKey: "thr") as? Double ?? 0.5
         windowSize = d.object(forKey: "win") as? Int ?? 8
         requiredActionCount = d.object(forKey: "req") as? Int ?? 4
+        overlayRevealDelay = d.object(forKey: "overlayDelay") as? Double ?? 1.0
     }
 
     private func persist() {
@@ -66,6 +71,7 @@ final class SettingsStore: ObservableObject {
         d.set(scoreThreshold, forKey: "thr")
         d.set(windowSize, forKey: "win")
         d.set(requiredActionCount, forKey: "req")
+        d.set(overlayRevealDelay, forKey: "overlayDelay")
     }
 
     var recordingConfiguration: RecordingConfiguration {

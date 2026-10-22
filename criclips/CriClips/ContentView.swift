@@ -550,9 +550,13 @@ struct SharePayload: Identifiable {
     let items: [Any]
 }
 
+private struct ClipSelection: Identifiable {
+    let id: Int
+}
+
 struct ClipsView: View {
     @State private var clips: [URL]
-    @State private var selectedClip: URL?
+    @State private var selectedClipIndex: ClipSelection?
     @State private var thumbnails: [URL: UIImage] = [:]
     @State private var isGridView = true
     // Multi-select
@@ -588,7 +592,9 @@ struct ClipsView: View {
                 : "Clips (\(clips.count))")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbarItems }
-            .sheet(item: $selectedClip) { url in VideoPlayerView(url: url) }
+            .sheet(item: $selectedClipIndex) { selection in
+                VideoPlayerView(clips: clips, initialIndex: selection.id)
+            }
             .sheet(item: $sharePayload) { payload in ShareSheet(items: payload.items) }
             .alert("Photos", isPresented: $showingPhotoResult) {
                 Button("OK", role: .cancel) {}
@@ -694,7 +700,11 @@ struct ClipsView: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
-            if isSelecting { toggleSelection(url) } else { selectedClip = url }
+            if isSelecting {
+                toggleSelection(url)
+            } else if let index = clips.firstIndex(of: url) {
+                selectedClipIndex = ClipSelection(id: index)
+            }
         }
         .contextMenu { cellContextMenu(url) }
     }
@@ -711,7 +721,11 @@ struct ClipsView: View {
                     .onTapGesture { toggleSelection(url) }
             }
             Button {
-                if isSelecting { toggleSelection(url) } else { selectedClip = url }
+                if isSelecting {
+                    toggleSelection(url)
+                } else if let index = clips.firstIndex(of: url) {
+                    selectedClipIndex = ClipSelection(id: index)
+                }
             } label: {
                 HStack(spacing: 12) {
                     thumbnailImage(url, size: 56).cornerRadius(6)
@@ -736,7 +750,11 @@ struct ClipsView: View {
 
     @ViewBuilder
     private func cellContextMenu(_ url: URL) -> some View {
-        Button { selectedClip = url } label: {
+        Button {
+            if let index = clips.firstIndex(of: url) {
+                selectedClipIndex = ClipSelection(id: index)
+            }
+        } label: {
             Label("Play", systemImage: "play.fill")
         }
         Button { shareURLs([url]) } label: {
@@ -905,19 +923,95 @@ struct ClipsView: View {
 // MARK: - Video Player
 
 struct VideoPlayerView: View {
-    let url: URL
+    let clips: [URL]
+    let initialIndex: Int
+
     @Environment(\.dismiss) private var dismiss
+    @State private var currentIndex: Int
+    @State private var player: AVPlayer
+
+    init(clips: [URL], initialIndex: Int) {
+        self.clips = clips
+        self.initialIndex = initialIndex
+
+        let safeIndex = max(0, min(initialIndex, max(0, clips.count - 1)))
+        _currentIndex = State(initialValue: safeIndex)
+        _player = State(initialValue: AVPlayer(url: clips[safeIndex]))
+    }
+
+    private var playingLabel: String {
+        clips.isEmpty ? "0 / 0" : "\(currentIndex + 1) / \(clips.count)"
+    }
+
+    private func moveToIndex(_ index: Int) {
+        guard !clips.isEmpty else { return }
+        let bounded = max(0, min(index, clips.count - 1))
+        guard bounded != currentIndex else { return }
+
+        currentIndex = bounded
+        player.replaceCurrentItem(with: AVPlayerItem(url: clips[bounded]))
+        player.seek(to: .zero)
+        player.play()
+    }
+
+    private func moveNext() {
+        guard clips.count > 1 else { return }
+        moveToIndex((currentIndex + 1) % clips.count)
+    }
+
+    private func movePrevious() {
+        guard clips.count > 1 else { return }
+        moveToIndex((currentIndex - 1 + clips.count) % clips.count)
+    }
 
     var body: some View {
         NavigationView {
-            VideoPlayer(player: AVPlayer(url: url))
-                .ignoresSafeArea()
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .navigationBarTrailing) {
-                        Button("Done") { dismiss() }
+            ZStack {
+                VideoPlayer(player: player)
+                    .ignoresSafeArea()
+                    .gesture(
+                        DragGesture(minimumDistance: 24, coordinateSpace: .local)
+                            .onEnded { value in
+                                if value.translation.width < -40 {
+                                    moveNext()
+                                } else if value.translation.width > 40 {
+                                    movePrevious()
+                                }
+                            }
+                    )
+
+                if clips.count > 1 {
+                    VStack {
+                        HStack {
+                            Spacer()
+                            Text(playingLabel)
+                                .font(.caption.weight(.semibold))
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(.ultraThinMaterial)
+                                .cornerRadius(10)
+                                .padding(.top, 12)
+                            Spacer()
+                        }
+                        Spacer()
                     }
                 }
+            }
+            .navigationTitle("Video")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .principal) {
+                    Text(playingLabel)
+                        .font(.caption.weight(.semibold))
+                }
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("Done") { dismiss() }
+                }
+            }
+        }
+        .onAppear {
+            player.seek(to: .zero)
+            player.play()
         }
     }
 }

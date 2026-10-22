@@ -20,64 +20,51 @@ struct MiniScoreboard: View {
     let lookup: PlayerLookup
 
     var body: some View {
-        VStack(spacing: 8) {
-            teamRow(isTeamA: true)
-            teamRow(isTeamA: false)
-            contextLine
+        VStack(alignment: .leading, spacing: 7) {
+            teamsLine
             Divider()
-            batterRow(state.strikerID, onStrike: true)
-            batterRow(state.nonStrikerID, onStrike: false)
-            Divider()
-            bowlerRow(selectedBowlerID, isCurrent: true)
-            if let last = lastBowlerID, last != selectedBowlerID {
-                bowlerRow(last, isCurrent: false)
-            }
-            ratesLine
-        }
-        .padding(14)
-        .background(.background, in: RoundedRectangle(cornerRadius: 16))
-        .overlay(RoundedRectangle(cornerRadius: 16).stroke(Color(.separator).opacity(0.35)))
-    }
-
-    // MARK: - Team rows
-
-    private func teamRow(isTeamA: Bool) -> some View {
-        let s = MatchScoring.teamScore(isTeamA: isTeamA, in: match)
-        let isBatting = innings.battingTeamIsA == isTeamA && !state.isInningsComplete
-        return HStack {
-            HStack(spacing: 6) {
-                Circle().fill(isBatting ? Color.green : .clear)
-                    .frame(width: 7, height: 7)
-                Text(match.teamReelName(isTeamA: isTeamA))
-                    .font(.headline)
-            }
-            Spacer()
-            if s.batted {
-                Text("\(s.runs)/\(s.wickets)")
-                    .font(.title3.bold()).monospacedDigit()
-                Text("(\(s.overs))")
-                    .font(.caption).foregroundStyle(.secondary).monospacedDigit()
-            } else {
-                Text("yet to bat").font(.caption).foregroundStyle(.secondary)
-            }
-        }
-    }
-
-    private var contextLine: some View {
-        Group {
+            battersLine
+            bowlersLine
             if let result = matchResult {
-                Label(result, systemImage: "trophy.fill").foregroundStyle(.orange)
+                Label(result, systemImage: "trophy.fill")
+                    .font(.caption).foregroundStyle(.orange)
             } else {
-                Text(tossLine).foregroundStyle(.secondary)
+                ratesLine
             }
         }
-        .font(.caption)
-        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(12)
+        .background(.background, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color(.separator).opacity(0.35)))
     }
 
-    private var tossLine: String {
-        let winner = match.teamReelName(isTeamA: match.tossWinnerIsA)
-        return "\(winner) won the toss & chose to \(match.tossDecision == .bat ? "bat" : "bowl")"
+    // MARK: - Teams
+    // Left:  IND 45/2 (3.4) · T 121 (12.0)   Right: AUS 120/6
+
+    private var teamsLine: some View {
+        let batName = match.teamReelName(isTeamA: innings.battingTeamIsA)
+        let otherName = match.teamReelName(isTeamA: !innings.battingTeamIsA)
+        let other = MatchScoring.teamScore(isTeamA: !innings.battingTeamIsA, in: match)
+        // Left side: batting score + overs, plus chase target if applicable
+        let leftSuffix = target.map { " · T \($0) (\(match.oversPerInnings).0)" } ?? ""
+        let leftText = "\(batName) \(state.totalRuns)/\(state.wickets) (\(state.oversDisplay))\(leftSuffix)"
+        // Right side: always the opponent (score if they have batted, otherwise just name)
+        let rightText: String = other.batted
+            ? "\(otherName) \(other.runs)/\(other.wickets)"
+            : otherName
+        return HStack(spacing: 0) {
+            HStack(spacing: 5) {
+                if !state.isInningsComplete {
+                    Circle().fill(.green).frame(width: 7, height: 7)
+                }
+                Text(leftText)
+                    .font(.headline).monospacedDigit()
+            }
+            Spacer(minLength: 12)
+            Text(rightText)
+                .font(.subheadline.weight(.medium)).monospacedDigit()
+                .foregroundStyle(.secondary)
+        }
+        .lineLimit(1)
     }
 
     private var matchResult: String? {
@@ -99,32 +86,48 @@ struct MiniScoreboard: View {
         return "Match tied"
     }
 
-    // MARK: - Batter / bowler rows
+    // MARK: - Batter / bowler lines (both players in one line each)
 
-    private func batterRow(_ id: UUID?, onStrike: Bool) -> some View {
-        let line = id.flatMap { battingLines[$0] }
-        return HStack(spacing: 8) {
-            Image(systemName: onStrike ? "circle.fill" : "circle")
-                .font(.system(size: 7)).foregroundStyle(onStrike ? .green : .secondary)
-            Text(lookup.reel(id)).lineLimit(1)
-            Spacer()
-            Text("\(line?.runs ?? 0) (\(line?.ballsFaced ?? 0))").monospacedDigit()
+    private var battersLine: some View {
+        HStack(spacing: 0) {
+            HStack(spacing: 5) {
+                Image(systemName: "figure.cricket").font(.caption2).foregroundStyle(.secondary)
+                batterText(state.strikerID, onStrike: true)
+            }
+            Spacer(minLength: 12)
+            batterText(state.nonStrikerID, onStrike: false)
         }
-        .font(onStrike ? .subheadline.bold() : .subheadline)
+        .font(.subheadline).monospacedDigit().lineLimit(1)
     }
 
-    private func bowlerRow(_ id: UUID?, isCurrent: Bool) -> some View {
-        let line = id.flatMap { bowlingLines[$0] }
-        return HStack(spacing: 8) {
-            Image(systemName: "cricket.ball").font(.caption2)
-                .foregroundStyle(isCurrent ? .primary : .secondary)
-            Text(lookup.reel(id)).lineLimit(1)
-            Spacer()
-            Text("\(line?.wickets ?? 0)–\(line?.runsConceded ?? 0) (\(line?.oversDisplay ?? "0.0"))")
-                .monospacedDigit()
+    private func batterText(_ id: UUID?, onStrike: Bool) -> some View {
+        let line = id.flatMap { battingLines[$0] }
+        return Text("\(lookup.reel(id))\(onStrike ? "*" : "") \(line?.runs ?? 0)(\(line?.ballsFaced ?? 0))")
+            .fontWeight(onStrike ? .semibold : .regular)
+            .foregroundStyle(onStrike ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+    }
+
+    private var bowlersLine: some View {
+        HStack(spacing: 0) {
+            HStack(spacing: 5) {
+                Image(systemName: "cricket.ball").font(.caption2).foregroundStyle(.secondary)
+                bowlerText(selectedBowlerID, isCurrent: true)
+            }
+            if let last = lastBowlerID, last != selectedBowlerID {
+                Spacer(minLength: 12)
+                bowlerText(last, isCurrent: false)
+            } else {
+                Spacer(minLength: 0)
+            }
         }
-        .font(isCurrent ? .subheadline.bold() : .subheadline)
-        .foregroundStyle(isCurrent ? .primary : .secondary)
+        .font(.subheadline).monospacedDigit().lineLimit(1)
+    }
+
+    private func bowlerText(_ id: UUID?, isCurrent: Bool) -> some View {
+        let line = id.flatMap { bowlingLines[$0] }
+        return Text("\(lookup.reel(id)) \(line?.wickets ?? 0)–\(line?.runsConceded ?? 0) (\(line?.oversDisplay ?? "0.0"))")
+            .fontWeight(isCurrent ? .semibold : .regular)
+            .foregroundStyle(isCurrent ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
     }
 
     private var ratesLine: some View {

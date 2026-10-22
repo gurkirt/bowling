@@ -15,8 +15,8 @@
 		6975ADA02EA9697900BD8D0E /* CriClipsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6975AD9F2EA9697900BD8D0E /* CriClipsUITests.swift */; };
 		6975ADA22EA9697900BD8D0E /* CriClipsUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6975ADA12EA9697900BD8D0E /* CriClipsUITestsLaunchTests.swift */; };
 		6975ADB02EAA6ADC00BD8D0E /* best_model.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 6975ADAF2EAA6ADA00BD8D0E /* best_model.mlpackage */; };
-		FASTVIT001 /* fastvit_sa12_exp21.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = FASTVIT000 /* fastvit_sa12_exp21.mlpackage */; };
 		CAMERA001 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAMERA000 /* CameraManager.swift */; };
+		FASTVIT001 /* fastvit_sa12_exp21.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = FASTVIT000 /* fastvit_sa12_exp21.mlpackage */; };
 		FRAME001 /* FrameBufferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRAME000 /* FrameBufferManager.swift */; };
 		MODEL001 /* ModelProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODEL000 /* ModelProcessor.swift */; };
 		RECORD001 /* RecordingConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = RECORD000 /* RecordingConfiguration.swift */; };
@@ -29,32 +29,32 @@
 			containerPortal = 6975AD782EA9697600BD8D0E /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 6975AD7F2EA9697600BD8D0E;
-			remoteInfo = "CriClips";
+			remoteInfo = CriClips;
 		};
 		6975AD9C2EA9697900BD8D0E /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
 			containerPortal = 6975AD782EA9697600BD8D0E /* Project object */;
 			proxyType = 1;
 			remoteGlobalIDString = 6975AD7F2EA9697600BD8D0E;
-			remoteInfo = "CriClips";
+			remoteInfo = CriClips;
 		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		6975AD802EA9697600BD8D0E /* CriClips.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "CriClips.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6975AD802EA9697600BD8D0E /* CriClips.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CriClips.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6975AD832EA9697600BD8D0E /* CriClipsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CriClipsApp.swift; sourceTree = "<group>"; };
 		6975AD852EA9697600BD8D0E /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		6975AD872EA9697800BD8D0E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6975AD892EA9697800BD8D0E /* CriClips.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CriClips.entitlements; sourceTree = "<group>"; };
 		6975AD8B2EA9697800BD8D0E /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		6975AD912EA9697900BD8D0E /* CriClipsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CriClipsTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6975AD912EA9697900BD8D0E /* CriClipsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CriClipsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6975AD952EA9697900BD8D0E /* CriClipsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CriClipsTests.swift; sourceTree = "<group>"; };
-		6975AD9B2EA9697900BD8D0E /* CriClipsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "CriClipsUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6975AD9B2EA9697900BD8D0E /* CriClipsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CriClipsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		6975AD9F2EA9697900BD8D0E /* CriClipsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CriClipsUITests.swift; sourceTree = "<group>"; };
 		6975ADA12EA9697900BD8D0E /* CriClipsUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CriClipsUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		6975ADAF2EAA6ADA00BD8D0E /* best_model.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = best_model.mlpackage; sourceTree = "<group>"; };
-		FASTVIT000 /* fastvit_sa12_exp21.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = fastvit_sa12_exp21.mlpackage; sourceTree = "<group>"; };
 		CAMERA000 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
+		FASTVIT000 /* fastvit_sa12_exp21.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = fastvit_sa12_exp21.mlpackage; sourceTree = "<group>"; };
 		FRAME000 /* FrameBufferManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameBufferManager.swift; sourceTree = "<group>"; };
 		INFO000 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		MODEL000 /* ModelProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProcessor.swift; sourceTree = "<group>"; };
@@ -124,7 +124,7 @@
 				INFO000 /* Info.plist */,
 				6975AD8A2EA9697800BD8D0E /* Preview Content */,
 			);
-			path = "CriClips";
+			path = CriClips;
 			sourceTree = "<group>";
 		};
 		6975AD8A2EA9697800BD8D0E /* Preview Content */ = {
@@ -140,7 +140,7 @@
 			children = (
 				6975AD952EA9697900BD8D0E /* CriClipsTests.swift */,
 			);
-			path = "CriClipsTests";
+			path = CriClipsTests;
 			sourceTree = "<group>";
 		};
 		6975AD9E2EA9697900BD8D0E /* CriClipsUITests */ = {
@@ -149,7 +149,7 @@
 				6975AD9F2EA9697900BD8D0E /* CriClipsUITests.swift */,
 				6975ADA12EA9697900BD8D0E /* CriClipsUITestsLaunchTests.swift */,
 			);
-			path = "CriClipsUITests";
+			path = CriClipsUITests;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -167,8 +167,8 @@
 			);
 			dependencies = (
 			);
-			name = "CriClips";
-			productName = "CriClips";
+			name = CriClips;
+			productName = CriClips;
 			productReference = 6975AD802EA9697600BD8D0E /* CriClips.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -185,8 +185,8 @@
 			dependencies = (
 				6975AD932EA9697900BD8D0E /* PBXTargetDependency */,
 			);
-			name = "CriClipsTests";
-			productName = "CriClipsTests";
+			name = CriClipsTests;
+			productName = CriClipsTests;
 			productReference = 6975AD912EA9697900BD8D0E /* CriClipsTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
@@ -203,8 +203,8 @@
 			dependencies = (
 				6975AD9D2EA9697900BD8D0E /* PBXTargetDependency */,
 			);
-			name = "CriClipsUITests";
-			productName = "CriClipsUITests";
+			name = CriClipsUITests;
+			productName = CriClipsUITests;
 			productReference = 6975AD9B2EA9697900BD8D0E /* CriClipsUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
@@ -446,7 +446,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "CriClips/CriClips.entitlements";
+				CODE_SIGN_ENTITLEMENTS = CriClips/CriClips.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"CriClips/Preview Content\"";
@@ -476,7 +476,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.criclips.app";
+				PRODUCT_BUNDLE_IDENTIFIER = com.criclips.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -491,7 +491,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "CriClips/CriClips.entitlements";
+				CODE_SIGN_ENTITLEMENTS = CriClips/CriClips.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"CriClips/Preview Content\"";
@@ -521,7 +521,7 @@
 				"LD_RUNPATH_SEARCH_PATHS[sdk=macosx*]" = "@executable_path/../Frameworks";
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.criclips.app";
+				PRODUCT_BUNDLE_IDENTIFIER = com.criclips.app;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -543,7 +543,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.criclips.app.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.criclips.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -566,7 +566,7 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.criclips.app.tests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.criclips.app.tests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
@@ -588,14 +588,14 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.criclips.app.uitests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.criclips.app.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "CriClips";
+				TEST_TARGET_NAME = CriClips;
 			};
 			name = Debug;
 		};
@@ -610,14 +610,14 @@
 				IPHONEOS_DEPLOYMENT_TARGET = 17.4;
 				MACOSX_DEPLOYMENT_TARGET = 14.4;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.criclips.app.uitests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.criclips.app.uitests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = iphoneos;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
-				TEST_TARGET_NAME = "CriClips";
+				TEST_TARGET_NAME = CriClips;
 			};
 			name = Release;
 		};

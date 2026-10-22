@@ -47,6 +47,12 @@ struct SettingsView: View {
                                range: 2...20, step: 1, unit: "s")
                 }
 
+                Section(header: Text("Highlight overlay"),
+                        footer: Text("How far into each clip the result (badge + score change) appears. Capped at 1s before the clip ends.")) {
+                    stepperRow("Result reveal", value: $settings.overlayRevealDelay,
+                               range: 0.5...5, step: 0.25, unit: "s")
+                }
+
                 Section(header: Text("Detection"),
                         footer: Text("Higher threshold and required-frame count reduce false triggers but may miss deliveries.")) {
                     HStack {

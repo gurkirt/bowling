@@ -10,6 +10,7 @@
 
 import SwiftUI
 import SwiftData
+import UIKit
 
 enum ScoringMode: String, CaseIterable {
     case auto = "Auto"
@@ -35,6 +36,9 @@ struct ScoringView: View {
     @State private var showingEntry = false
     @State private var showingBowlerPicker = false
     @State private var showingSettings = false
+    /// User-initiated pause: keeps the screen awake but fully stops camera + CNN.
+    @State private var isManuallyPaused = false
+    @State private var showingCommentary = false
 
     private var lookup: PlayerLookup { PlayerLookup(players) }
 
@@ -68,12 +72,15 @@ struct ScoringView: View {
         .onAppear(perform: setup)
         .onDisappear(perform: pauseEngine)
         .onReceive(NotificationCenter.default.publisher(for: .newClipSaved)) { handleClipSaved($0) }
-        .onChange(of: mode) { _, _ in updateDetectionState() }
-        .onChange(of: selectedBowlerID) { _, _ in updateDetectionState() }
-        .onChange(of: showingEntry) { _, _ in updateDetectionState() }
+        .onChange(of: mode) { _, _ in applyCaptureState() }
+        .onChange(of: selectedBowlerID) { _, _ in applyCaptureState() }
+        .onChange(of: showingEntry) { _, _ in applyCaptureState() }
+        .onChange(of: videoWriter.isCoolingDown) { _, _ in applyCaptureState() }
+        .onChange(of: isManuallyPaused) { _, _ in applyCaptureState() }
         .sheet(isPresented: $showingSettings) { SettingsView() }
         .sheet(isPresented: $showingBowlerPicker) { bowlerPickerSheet }
         .sheet(isPresented: $showingEntry) { entrySheet }
+        .navigationDestination(isPresented: $showingCommentary) { CommentaryView(match: match) }
     }
 
     // MARK: - Content per phase
@@ -135,42 +142,50 @@ struct ScoringView: View {
     private var previewStrip: some View {
         Group {
             if mode == .manual {
-                VStack(spacing: 8) {
-                    modeSwitch
+                HStack(alignment: .top, spacing: 12) {
+                    verticalModeSwitch.frame(width: 92)
                     Label("Manual scoring — tap Add Ball for each delivery.", systemImage: "hand.tap")
                         .font(.caption).foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 6)
                 }
             } else {
-                HStack(spacing: 12) {
+                // The CNN input preview is the main feature: give it the full remaining
+                // width, with the live status text overlaid ON it so what's happening
+                // (Watching / Recording / Cooldown / Paused / Starting) is unmistakable.
+                HStack(alignment: .top, spacing: 12) {
                     ZStack {
                         if let img = modelProcessor.previewImage {
-                            Image(uiImage: img).resizable().scaledToFill()
+                            Image(uiImage: img).resizable().scaledToFit()
                         } else {
                             Color.black
-                            if cameraManager.isAuthorized { ProgressView().tint(.white) }
-                            else { Text("Camera\nneeded").font(.caption2).foregroundStyle(.white).multilineTextAlignment(.center) }
                         }
+                        previewStatusOverlay
                     }
-                    .frame(width: 110, height: 110)
+                    .aspectRatio(1, contentMode: .fit)
+                    .frame(maxWidth: .infinity)
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.15)))
 
-                    VStack(alignment: .leading, spacing: 10) {
-                        modeSwitch
-                        detectionStatus
+                    VStack(spacing: 10) {
+                        verticalModeSwitch
+                        pauseButton
+                        Spacer(minLength: 0)
                         if pendingClipFilename != nil {
-                            HStack(spacing: 6) {
+                            VStack(spacing: 4) {
                                 Image(systemName: "film.fill").foregroundStyle(.green)
-                                Text("Clip ready").font(.caption).bold()
-                                Spacer()
+                                Text("Clip ready").font(.caption2).bold()
                                 Button { deletePendingClip() } label: {
-                                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary)
+                                    Image(systemName: "xmark.circle.fill")
+                                        .font(.caption).foregroundStyle(.secondary)
                                 }
                             }
-                            .padding(.horizontal, 8).padding(.vertical, 5)
-                            .background(.green.opacity(0.12), in: Capsule())
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 6)
+                            .background(.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
                         }
                     }
+                    .frame(width: 92)
                 }
             }
         }
@@ -178,28 +193,97 @@ struct ScoringView: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
     }
 
-    private var modeSwitch: some View {
-        Picker("Mode", selection: $mode) {
-            ForEach(ScoringMode.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-        }
-        .pickerStyle(.segmented)
-    }
-
-    private var detectionStatus: some View {
-        Group {
-            if selectedBowlerID == nil {
-                Label("Select a bowler to arm detection", systemImage: "cricket.ball")
-            } else if videoWriter.isRecording {
-                Label("Recording delivery…", systemImage: "record.circle").foregroundStyle(.red)
-            } else if videoWriter.isCoolingDown {
-                Label("Cooldown \(videoWriter.cooldownRemaining)s", systemImage: "hourglass")
-            } else if videoWriter.isReadyForTrigger {
-                Label("Watching for delivery", systemImage: "dot.radiowaves.left.and.right").foregroundStyle(.green)
-            } else {
-                Label("Buffering…", systemImage: "clock")
+    /// Auto/Manual as stacked vertical segments so the preview keeps the width.
+    private var verticalModeSwitch: some View {
+        VStack(spacing: 6) {
+            ForEach(ScoringMode.allCases, id: \.self) { m in
+                Button { mode = m } label: {
+                    Text(m.rawValue)
+                        .font(.caption.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 32)
+                }
+                .buttonStyle(.plain)
+                .background(mode == m ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary),
+                            in: RoundedRectangle(cornerRadius: 8))
+                .foregroundStyle(mode == m ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
             }
         }
-        .font(.caption).foregroundStyle(.secondary)
+    }
+
+    /// Manual battery pause — keeps the screen awake but stops camera + CNN entirely.
+    private var pauseButton: some View {
+        Button { isManuallyPaused.toggle() } label: {
+            VStack(spacing: 4) {
+                Image(systemName: isManuallyPaused ? "play.fill" : "pause.fill")
+                Text(isManuallyPaused ? "Resume" : "Pause").font(.caption2.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.plain)
+        .background(isManuallyPaused ? AnyShapeStyle(Color.green) : AnyShapeStyle(.quaternary),
+                    in: RoundedRectangle(cornerRadius: 8))
+        .foregroundStyle(isManuallyPaused ? AnyShapeStyle(.white) : AnyShapeStyle(.primary))
+    }
+
+    // MARK: - Preview status overlay
+
+    private enum DetectionPhase { case noCamera, pickBowler, paused, cooldown(Int), recording, starting, watching }
+
+    private var detectionPhase: DetectionPhase {
+        if !cameraManager.isAuthorized { return .noCamera }
+        if isManuallyPaused { return .paused }
+        if selectedBowlerID == nil { return .pickBowler }
+        if videoWriter.isRecording { return .recording }
+        if videoWriter.isCoolingDown { return .cooldown(videoWriter.cooldownRemaining) }
+        if videoWriter.isReadyForTrigger { return .watching }
+        return .starting
+    }
+
+    @ViewBuilder
+    private var previewStatusOverlay: some View {
+        switch detectionPhase {
+        case .recording:
+            cornerPill("record.circle.fill", "REC", .red)
+        case .watching:
+            cornerPill("dot.radiowaves.left.and.right", "Watching", .green)
+        case .starting:
+            centeredStatus("hourglass", "Starting camera…", .white.opacity(0.85))
+        case .cooldown(let n):
+            centeredStatus("moon.zzz.fill", "Camera paused\nCooldown \(n)s", .white.opacity(0.8))
+        case .paused:
+            centeredStatus("pause.circle.fill", "Paused\nTap Resume to watch", .white.opacity(0.85))
+        case .pickBowler:
+            centeredStatus("cricket.ball", "Select a bowler\nto start detection", .white.opacity(0.85))
+        case .noCamera:
+            centeredStatus("video.slash.fill", "Camera needed", .white)
+        }
+    }
+
+    private func centeredStatus(_ icon: String, _ text: String, _ color: Color) -> some View {
+        VStack(spacing: 8) {
+            Image(systemName: icon).font(.title)
+            Text(text).font(.caption.weight(.medium)).multilineTextAlignment(.center)
+        }
+        .foregroundStyle(color)
+        .padding(16)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func cornerPill(_ icon: String, _ text: String, _ color: Color) -> some View {
+        VStack {
+            HStack {
+                HStack(spacing: 5) {
+                    Image(systemName: icon).font(.caption2)
+                    Text(text).font(.caption2.weight(.bold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 9).padding(.vertical, 5)
+                .background(color.opacity(0.9), in: Capsule())
+                Spacer()
+            }
+            Spacer()
+        }
+        .padding(8)
     }
 
     // MARK: - Scoring controls (Add Ball + equal buttons + this-over strip)
@@ -242,25 +326,32 @@ struct ScoringView: View {
     private func thisOverStrip(_ innings: Innings, state: InningsState) -> some View {
         let overNo = state.nextOverNumber
         let balls = innings.orderedDeliveries.filter { $0.overNumber == overNo }
-        return VStack(alignment: .leading, spacing: 8) {
-            Text("This Over \(overNo + 1)").font(.caption).foregroundStyle(.secondary)
-            if balls.isEmpty {
-                Text("—").font(.headline).foregroundStyle(.tertiary)
-            } else {
-                FlowLayout(spacing: 8) {
-                    ForEach(balls) { ball in
-                        Text(DeliveryFormatting.badge(ball))
-                            .font(.headline.bold()).monospacedDigit()
-                            .frame(minWidth: 38, minHeight: 38)
-                            .background(DeliveryFormatting.kind(ball).color, in: Circle())
-                            .foregroundStyle(.white)
+        return Button { showingCommentary = true } label: {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text("This Over \(overNo + 1)").font(.caption).foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    Image(systemName: "list.bullet").font(.caption2).foregroundStyle(.tertiary)
+                }
+                if balls.isEmpty {
+                    Text("—").font(.headline).foregroundStyle(.tertiary)
+                } else {
+                    FlowLayout(spacing: 8) {
+                        ForEach(balls) { ball in
+                            Text(DeliveryFormatting.badge(ball))
+                                .font(.headline.bold()).monospacedDigit()
+                                .frame(minWidth: 38, minHeight: 38)
+                                .background(DeliveryFormatting.kind(ball).color, in: Circle())
+                                .foregroundStyle(.white)
+                        }
                     }
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(12)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
         }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .padding(12)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14))
+        .buttonStyle(.plain)
     }
 
     // MARK: - Phase panels
@@ -377,12 +468,14 @@ struct ScoringView: View {
             modelProcessor?.processFrame(sampleBuffer)
         }
         modelProcessor.onTriggerDetected = { [weak videoWriter] in videoWriter?.triggerRecording() }
-        if cameraManager.isAuthorized && !cameraManager.isSessionRunning { cameraManager.startSession() }
+        // Keep the screen awake while scoring — deliveries can be minutes apart and the
+        // scorer shouldn't have to tap to wake the phone between balls.
+        UIApplication.shared.isIdleTimerDisabled = true
         if let innings {
             let s = MatchScoring.state(for: innings, in: match)
             if s.ballsThisOver > 0 { selectedBowlerID = currentOverBowlerID(innings) }
         }
-        updateDetectionState()
+        applyCaptureState()
     }
 
     private func applySettings() {
@@ -394,14 +487,32 @@ struct ScoringView: View {
         modelProcessor.requiredActionCount = settings.requiredActionCount
     }
 
-    private func updateDetectionState() {
+    /// Whether we should actively capture: only in auto mode, with a bowler chosen, the
+    /// innings live, no ball-entry sheet up, not in cooldown, and not manually paused.
+    private var shouldCapture: Bool {
         let live = innings.map { !MatchScoring.state(for: $0, in: match).isInningsComplete } ?? false
-        modelProcessor.isRunning = (mode == .auto) && selectedBowlerID != nil && live && !showingEntry
+        return mode == .auto && selectedBowlerID != nil && live
+            && !showingEntry && !videoWriter.isCoolingDown && !isManuallyPaused
+    }
+
+    /// Drive camera + CNN together off `shouldCapture`. Stopping the camera during
+    /// cooldown / manual pause / bowler selection is the biggest power saving — the
+    /// tradeoff is a ~1s warm-up when capture resumes, which the scorer can offset by
+    /// lowering the cooldown.
+    private func applyCaptureState() {
+        let capture = shouldCapture
+        modelProcessor.isRunning = capture
+        if capture {
+            cameraManager.startSession()   // self-guards if already running
+        } else {
+            cameraManager.stopSession()    // self-guards if already stopped
+        }
     }
 
     private func pauseEngine() {
         modelProcessor.isRunning = false
         cameraManager.stopSession()
+        UIApplication.shared.isIdleTimerDisabled = false
     }
 
     private func presentBowlerPicker(_ innings: Innings) {
@@ -460,11 +571,10 @@ struct ScoringView: View {
 
         let newState = MatchScoring.state(for: innings, in: match)
         if newState.justCompletedOver && !newState.isInningsComplete {
-            HighlightBuilder.shared.buildOverReel(match: match, innings: innings,
-                                                  overNumber: s.nextOverNumber, lookup: lookup)
+            HighlightBuilder.shared.buildInningsReel(match: match, innings: innings, lookup: lookup)
             presentBowlerPicker(innings)
         }
-        updateDetectionState()
+        applyCaptureState()
     }
 
     private func undoLast(_ innings: Innings) {
@@ -487,7 +597,7 @@ struct ScoringView: View {
             selectedBowlerID = nil
             showingBowlerPicker = !remaining.isEmpty
         }
-        updateDetectionState()
+        applyCaptureState()
     }
 
     private func swapStrike(_ innings: Innings) {
@@ -513,8 +623,8 @@ struct ScoringView: View {
             activeInningsID = second.id
             selectedBowlerID = nil
             pendingClipFilename = nil
-            cameraManager.startSession()
-            updateDetectionState()
+            isManuallyPaused = false
+            applyCaptureState()
         }
     }
 

@@ -22,8 +22,25 @@ struct HighlightsView: View {
 
     private var lookup: PlayerLookup { PlayerLookup(players) }
     private var sortedInnings: [Innings] { match.innings.sorted { $0.order < $1.order } }
-    private var matchLabel: String {
-        "\(match.teamAName)-v-\(match.teamBName)".replacingOccurrences(of: " ", with: "")
+
+    /// Short file-safe team label, e.g. "KW".
+    private func teamLabel(_ innings: Innings) -> String {
+        match.teamReelName(isTeamA: innings.battingTeamIsA).replacingOccurrences(of: " ", with: "")
+    }
+
+    /// Reel filename from the current selection: "KW_innings", "match",
+    /// "KW_sixes_wickets", "match_wickets", …
+    private var customReelName: String {
+        let picked = sortedInnings.filter { selectedInnings.contains($0.order) }
+        let base = picked.count == 1 ? teamLabel(picked[0]) : "match"
+        let tags = selectedTags.isEmpty ? Set(HighlightTag.allCases) : selectedTags
+        if tags == Set(HighlightTag.allCases) {
+            return base == "match" ? "match" : "\(base)_innings"
+        }
+        let tagPart = HighlightTag.allCases.filter { tags.contains($0) }
+            .map { $0.displayName.lowercased() }
+            .joined(separator: "_")
+        return "\(base)_\(tagPart)"
     }
 
     var body: some View {
@@ -48,7 +65,7 @@ struct HighlightsView: View {
                 let clips = builder.reelClips(from: highlightDeliveries(innings, tags: Set(HighlightTag.allCases)),
                                               match: match, lookup: lookup)
                 Button {
-                    buildReel(clips: clips, name: "\(matchLabel)_\(name.replacingOccurrences(of: " ", with: ""))")
+                    buildReel(clips: clips, name: "\(teamLabel(innings))_innings")
                 } label: {
                     HStack {
                         Label("\(name) — Innings \(innings.order)", systemImage: "film")
@@ -76,7 +93,7 @@ struct HighlightsView: View {
                 }
             }
             Button {
-                buildReel(clips: customClips, name: "\(matchLabel)_custom")
+                buildReel(clips: customClips, name: customReelName)
             } label: {
                 if builder.isBuilding {
                     HStack { ProgressView(); Text("Building…") }
@@ -96,7 +113,7 @@ struct HighlightsView: View {
     private var reelsSection: some View {
         Section("Saved Reels") {
             if reels.isEmpty {
-                Text("Over reels build automatically; create match reels above.")
+                Text("Innings reels build automatically at each over; create match reels above.")
                     .font(.caption).foregroundStyle(.secondary)
             }
             ForEach(reels, id: \.self) { url in
@@ -194,7 +211,11 @@ struct ReelPlayerView: View {
                         Menu {
                             ForEach(speeds, id: \.self) { sp in
                                 Button { controller.setRate(sp) } label: {
-                                    Label(speedLabel(sp), systemImage: controller.rate == sp ? "checkmark" : "")
+                                    if controller.rate == sp {
+                                        Label(speedLabel(sp), systemImage: "checkmark")
+                                    } else {
+                                        Text(speedLabel(sp))
+                                    }
                                 }
                             }
                         } label: {

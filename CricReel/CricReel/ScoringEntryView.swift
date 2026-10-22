@@ -35,8 +35,12 @@ struct ScoringEntryView: View {
                 VStack(spacing: 16) {
                     if let clip = pendingClipFilename {
                         VStack(spacing: 8) {
-                            VideoPlayer(player: AVPlayer(url: ClipStore.url(forClip: clip)))
-                                .frame(height: 200)
+                            // Clips are portrait (9:16, capture is rotated 90°). A stable
+                            // looping player auto-plays the delivery; height is capped so
+                            // the whole scoring UI fits on a compact phone.
+                            ClipPreviewPlayer(url: ClipStore.url(forClip: clip))
+                                .aspectRatio(9.0 / 16.0, contentMode: .fit)
+                                .frame(maxWidth: .infinity, maxHeight: 210)
                                 .clipShape(RoundedRectangle(cornerRadius: 14))
                             Button(role: .destructive) {
                                 onDiscardClip(); dismiss()
@@ -92,5 +96,25 @@ struct ScoringEntryView: View {
                     onDiscardClip: pendingClipFilename != nil ? { onDiscardClip(); dismiss() } : nil)
             }
         }
+    }
+}
+
+/// A stable, muted, seamlessly-looping clip player. Created once (not rebuilt on every
+/// SwiftUI redraw), so it reliably shows the whole delivery instead of a poster frame.
+private struct ClipPreviewPlayer: View {
+    let url: URL
+    @State private var player = AVQueuePlayer()
+    @State private var looper: AVPlayerLooper?
+
+    var body: some View {
+        VideoPlayer(player: player)
+            .onAppear {
+                if looper == nil {
+                    looper = AVPlayerLooper(player: player, templateItem: AVPlayerItem(url: url))
+                }
+                player.isMuted = true
+                player.play()
+            }
+            .onDisappear { player.pause() }
     }
 }
