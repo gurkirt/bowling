@@ -131,9 +131,15 @@ def main() -> None:
     ap.add_argument("--core_width", type=int, default=208, help="Width of the unmargined crop in saved pixels.")
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--videos", default="", help="Comma-separated stems to (re)write; default all.")
+    for edge in ("outer", "inner", "above", "below"):
+        ap.add_argument(f"--{edge}", type=float, default=getattr(stump_crops, edge.upper()),
+                        help=f"Crop edge in stump heights (default stump_crops.{edge.upper()}).")
     ap.add_argument("--stumps_review", type=pathlib.Path, default=pathlib.Path("labels/stumps_review.json"),
                     help="label_stumps.py progress file; deliveries marked 'occluded' there are left out.")
     args = ap.parse_args()
+    # Workers are forked after this, so they crop with the same geometry.
+    stump_crops.OUTER, stump_crops.INNER, stump_crops.ABOVE, stump_crops.BELOW = \
+        args.outer, args.inner, args.above, args.below
 
     aspect = (stump_crops.ABOVE + stump_crops.BELOW) / (stump_crops.OUTER + stump_crops.INNER)
     core = (args.core_width, round(args.core_width * aspect))

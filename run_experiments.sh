@@ -14,8 +14,10 @@
 # Build both sets from the same annotations first:
 #   python training_set.py --video_dir videos --output_dir training_set
 #   python stump_training_set.py --workers 16
+#   python stump_training_set.py --workers 16 --inner 0.1 --core_width 160 --out training_set_stumps_i01  # s04
 #
-# RUN:    ./run_experiments.sh
+# RUN:    ./run_experiments.sh                (s04 on GPU 1)
+#         GPU=0 ./run_experiments.sh s04      (any run names from run() below)
 # WATCH:  tail -f experiments/logs/$ROUND/*.log
 # STOP:   pkill -f train_classifier.py
 export HF_HUB_OFFLINE=1
@@ -42,11 +44,11 @@ train_fixed() {
 }
 
 train_stumps() {
-  # args: $1=gpu $2=model $3=tag
+  # args: $1=gpu $2=model $3=tag [$4=training set dir, default training_set_stumps] [$5=height $6=width, default 320 208]
   CUDA_VISIBLE_DEVICES=$1 python train_classifier.py $(common_args) \
-    --data_dir training_set_stumps/frames \
+    --data_dir "${4:-training_set_stumps}/frames" \
     --model_name "$2" \
-    --input_height 320 --input_width 208 \
+    --input_height "${5:-320}" --input_width "${6:-208}" \
     --crop_margin 0.15 --jitter_scale 0.1 --jitter_shift 0.04 --no_hflip \
     --output_dir "experiments/trainings/$ROUND/$3" \
     > "experiments/logs/$ROUND/$3.log" 2>&1
@@ -57,7 +59,22 @@ train_stumps() {
 #            train_stumps 1 mobilenetv4_conv_small s02_mnv4s_stumps
 #   round3:  run_ablation_experiments3.sh (exp17-21; exp21 = train_fixed above)
 
-train_stumps 0 fastvit_sa12 s03_fastvit_sa12_stumps &
-train_fixed  1 fastvit_sa12 exp22_fastvit_sa12_fixedcrop &
+run() {
+  case "$1" in
+    # done:
+    # s03)   train_stumps 0 fastvit_sa12 s03_fastvit_sa12_stumps ;;
+    # exp22) train_fixed  1 fastvit_sa12 exp22_fastvit_sa12_fixedcrop ;;
+    # Cheaper stump crops: inner edge 0.3 -> 0.1 (bowler never crosses the stump centre,
+    # analysis/crop_extent.py) and 256x160 input (64 px per stump height instead of 80).
+    # Two crops = 1.25x exp21's pixels instead of 2x.
+    s04)   train_stumps "${GPU:-1}" fastvit_sa12 s04_fastvit_sa12_stumps_i01_256x160 training_set_stumps_i01 256 160 ;;
+    *)     echo "unknown run: $1" >&2; return 1 ;;
+  esac
+}
+
+[ $# -gt 0 ] || set -- s04
+for name in "$@"; do
+  run "$name" &
+done
 wait
 echo "$ROUND finished. Logs in experiments/logs/$ROUND/, models in experiments/trainings/$ROUND/."

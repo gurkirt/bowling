@@ -21,9 +21,14 @@ Usage:
   python export_pytorch.py <ckpt> --output models/fastvit_sa12.pt
   python export_pytorch.py <ckpt> --use-raw      # use raw (non-EMA) weights
   python export_pytorch.py <ckpt> --torchscript  # also emit a CPU TorchScript .pt
+
+Stump-crop models (trained on stump_training_set.py output) also carry 'stump_crops':
+the crop geometry in stump heights, read from <data_dir>/../meta.json or given with
+--stump_geometry OUTER,INNER,ABOVE,BELOW. The app needs it to cut the same two crops.
 """
 
 import argparse
+import json
 import pathlib
 import sys
 
@@ -35,7 +40,22 @@ IMAGENET_STD = [0.229, 0.224, 0.225]
 CLASS_NAMES = ["no_action", "action"]
 
 
-def build_portable(checkpoint_path: pathlib.Path, use_raw: bool) -> dict:
+def stump_crops_info(args, geometry: str) -> dict:
+    """Crop geometry for a stump-crop model, or None for a fixed-crop one."""
+    meta_path = pathlib.Path(getattr(args, "data_dir", "")).parent / "meta.json"
+    if geometry:
+        g = dict(zip(("outer", "inner", "above", "below"), (float(v) for v in geometry.split(","))))
+    elif meta_path.is_file():
+        g = json.load(open(meta_path))["geometry_stump_heights"]
+    else:
+        return None
+    return {"geometry_stump_heights": g, "right_crop_mirrored": True,
+            "note": "crop = (cx - outer*h, base - above*h, cx + inner*h, base + below*h) for the left side, "
+                    "mirrored about cx for the right side and flipped; h = stump height, cx = stump centre-x, "
+                    "base = stump bottom-y; resize each to input_width x input_height, score both, take the max"}
+
+
+def build_portable(checkpoint_path: pathlib.Path, use_raw: bool, geometry: str = "") -> dict:
     """Load a training checkpoint and return a slim, portable artifact dict."""
     print(f"Loading checkpoint: {checkpoint_path}")
     ckpt = torch.load(str(checkpoint_path), map_location="cpu", weights_only=False)
@@ -79,6 +99,9 @@ def build_portable(checkpoint_path: pathlib.Path, use_raw: bool) -> dict:
         "val_precision": ckpt.get("val_precision"),
         "epoch": ckpt.get("epoch"),
     }
+    stumps = stump_crops_info(args, geometry)
+    if stumps:
+        artifact["stump_crops"] = stumps
 
     print("Portable artifact configuration:")
     print(f"  Architecture : {config['model_name']}")
@@ -86,6 +109,8 @@ def build_portable(checkpoint_path: pathlib.Path, use_raw: bool) -> dict:
     print(f"  Num classes  : {config['num_classes']}")
     print(f"  Weights      : {weights_kind}")
     print(f"  Val F1/Acc   : {artifact['val_f1']} / {artifact['val_acc']}")
+    if stumps:
+        print(f"  Stump crops  : {stumps['geometry_stump_heights']} (right crop mirrored)")
     return artifact
 
 
@@ -143,13 +168,16 @@ def main() -> None:
                         help="Use raw (non-EMA) weights instead of the deployed EMA weights.")
     parser.add_argument("--torchscript", action="store_true",
                         help="Also emit a self-contained CPU TorchScript .pt (needs timm).")
+    parser.add_argument("--stump_geometry", default="",
+                        help="OUTER,INNER,ABOVE,BELOW in stump heights for a stump-crop model, when "
+                             "<data_dir>/../meta.json is not available here (s04: 2.3,0.1,3.1,0.9).")
     args = parser.parse_args()
 
     if not args.checkpoint.exists():
         print(f"Error: checkpoint not found: {args.checkpoint}", file=sys.stderr)
         sys.exit(1)
 
-    artifact = build_portable(args.checkpoint, use_raw=args.use_raw)
+    artifact = build_portable(args.checkpoint, use_raw=args.use_raw, geometry=args.stump_geometry)
 
     if args.output is None:
         output_path = pathlib.Path("models") / f"{artifact['config']['model_name']}.pt"
@@ -171,6 +199,8 @@ def main() -> None:
     print(f"  python export_executorch.py {output_path} --backend xnnpack    # CPU .pte")
     print(f"  python export_executorch.py {output_path} --backend coreml     # ExecuTorch CoreML/ANE .pte")
     print(f"  python export_executorch.py {output_path} --backend mlpackage  # native Core ML .mlpackage")
+    if "stump_crops" in artifact:
+        print("  (stump-crop model: add --batch 2 so one call scores both side crops)")
 
 
 if __name__ == "__main__":

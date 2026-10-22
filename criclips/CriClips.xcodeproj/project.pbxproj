@@ -15,10 +15,11 @@
 		6975ADA02EA9697900BD8D0E /* CriClipsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6975AD9F2EA9697900BD8D0E /* CriClipsUITests.swift */; };
 		6975ADA22EA9697900BD8D0E /* CriClipsUITestsLaunchTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6975ADA12EA9697900BD8D0E /* CriClipsUITestsLaunchTests.swift */; };
 		6975ADB02EAA6ADC00BD8D0E /* best_model.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = 6975ADAF2EAA6ADA00BD8D0E /* best_model.mlpackage */; };
-		FASTVIT001 /* fastvit_sa12_exp21.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = FASTVIT000 /* fastvit_sa12_exp21.mlpackage */; };
+		FASTVIT001 /* fastvit_sa12_s04.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = FASTVIT000 /* fastvit_sa12_s04.mlpackage */; };
 		CAMERA001 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAMERA000 /* CameraManager.swift */; };
 		FRAME001 /* FrameBufferManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FRAME000 /* FrameBufferManager.swift */; };
 		MODEL001 /* ModelProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = MODEL000 /* ModelProcessor.swift */; };
+		STUMP001 /* StumpCalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = STUMP000 /* StumpCalibration.swift */; };
 		RECORD001 /* RecordingConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = RECORD000 /* RecordingConfiguration.swift */; };
 		VIDEO001 /* VideoWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = VIDEO000 /* VideoWriter.swift */; };
 /* End PBXBuildFile section */
@@ -53,11 +54,12 @@
 		6975AD9F2EA9697900BD8D0E /* CriClipsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CriClipsUITests.swift; sourceTree = "<group>"; };
 		6975ADA12EA9697900BD8D0E /* CriClipsUITestsLaunchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CriClipsUITestsLaunchTests.swift; sourceTree = "<group>"; };
 		6975ADAF2EAA6ADA00BD8D0E /* best_model.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = best_model.mlpackage; sourceTree = "<group>"; };
-		FASTVIT000 /* fastvit_sa12_exp21.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = fastvit_sa12_exp21.mlpackage; sourceTree = "<group>"; };
+		FASTVIT000 /* fastvit_sa12_s04.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = fastvit_sa12_s04.mlpackage; sourceTree = "<group>"; };
 		CAMERA000 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		FRAME000 /* FrameBufferManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrameBufferManager.swift; sourceTree = "<group>"; };
 		INFO000 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		MODEL000 /* ModelProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProcessor.swift; sourceTree = "<group>"; };
+		STUMP000 /* StumpCalibration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StumpCalibration.swift; sourceTree = "<group>"; };
 		RECORD000 /* RecordingConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingConfiguration.swift; sourceTree = "<group>"; };
 		VIDEO000 /* VideoWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWriter.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -113,9 +115,10 @@
 				6975AD832EA9697600BD8D0E /* CriClipsApp.swift */,
 				6975AD852EA9697600BD8D0E /* ContentView.swift */,
 				6975ADAF2EAA6ADA00BD8D0E /* best_model.mlpackage */,
-				FASTVIT000 /* fastvit_sa12_exp21.mlpackage */,
+				FASTVIT000 /* fastvit_sa12_s04.mlpackage */,
 				CAMERA000 /* CameraManager.swift */,
 				MODEL000 /* ModelProcessor.swift */,
+				STUMP000 /* StumpCalibration.swift */,
 				FRAME000 /* FrameBufferManager.swift */,
 				VIDEO000 /* VideoWriter.swift */,
 				RECORD000 /* RecordingConfiguration.swift */,
@@ -259,7 +262,7 @@
 				6975AD8C2EA9697800BD8D0E /* Preview Assets.xcassets in Resources */,
 				6975AD882EA9697800BD8D0E /* Assets.xcassets in Resources */,
 				6975ADB02EAA6ADC00BD8D0E /* best_model.mlpackage in Resources */,
-				FASTVIT001 /* fastvit_sa12_exp21.mlpackage in Resources */,
+				FASTVIT001 /* fastvit_sa12_s04.mlpackage in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -288,6 +291,7 @@
 				6975AD842EA9697600BD8D0E /* CriClipsApp.swift in Sources */,
 				CAMERA001 /* CameraManager.swift in Sources */,
 				MODEL001 /* ModelProcessor.swift in Sources */,
+				STUMP001 /* StumpCalibration.swift in Sources */,
 				FRAME001 /* FrameBufferManager.swift in Sources */,
 				VIDEO001 /* VideoWriter.swift in Sources */,
 				RECORD001 /* RecordingConfiguration.swift in Sources */,

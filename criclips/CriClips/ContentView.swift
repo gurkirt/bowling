@@ -20,6 +20,9 @@ struct ContentView: View {
     @State private var showingClips = false
     @State private var showingSettings = false
     @State private var showingTestFrames = false
+    /// Stump calibration overlay (not a sheet: sheets pause the camera). Shown at launch.
+    @State private var showingCalibration = false
+    @State private var stumpBox = StumpBox.load()
     @State private var savedClips: [URL] = []
     @State private var showClipBanner = false
     // Recording settings
@@ -57,6 +60,16 @@ struct ContentView: View {
                     .padding(.top, 56)
                     .zIndex(10)
             }
+
+            if showingCalibration {
+                StumpCalibrationView(frame: modelProcessor.fullFramePreview, box: $stumpBox) {
+                    modelProcessor.stumpBox = stumpBox
+                    showingCalibration = false
+                }
+                .foregroundColor(.white)
+                .background(Color.black.ignoresSafeArea())
+                .zIndex(20)
+            }
         }
         .onAppear(perform: setupApp)
         .sheet(isPresented: $showingClips) {
@@ -84,6 +97,10 @@ struct ContentView: View {
         .onChange(of: showingClips)      { pauseOrResume(presenting: $0) }
         .onChange(of: showingSettings)   { pauseOrResume(presenting: $0) }
         .onChange(of: showingTestFrames) { pauseOrResume(presenting: $0) }
+        .onChange(of: showingCalibration) { open in
+            modelProcessor.publishesFullFrame = open
+            modelProcessor.isRunning = !open
+        }
     }
 
     // MARK: - Header
@@ -100,6 +117,15 @@ struct ContentView: View {
             }
             Spacer()
             HStack(spacing: 8) {
+                Button { showingCalibration = true } label: {
+                    Image(systemName: "viewfinder")
+                        .font(.subheadline.weight(.semibold))
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 8)
+                        .background(Color.white.opacity(0.15))
+                        .foregroundColor(.white)
+                        .cornerRadius(20)
+                }
                 Button { showingSettings = true } label: {
                     Image(systemName: "gearshape")
                         .font(.subheadline.weight(.semibold))
@@ -146,12 +172,13 @@ struct ContentView: View {
     private var cropPreviewSection: some View {
         GeometryReader { geo in
             let size = geo.size.width
+            let height = size / previewAspect
             ZStack {
                 if let img = modelProcessor.bigPreviewImage {
                     Image(uiImage: img)
                         .resizable()
                         .scaledToFill()
-                        .frame(width: size, height: size)
+                        .frame(width: size, height: height)
                         .clipped()
                         .scaleEffect(previewScale, anchor: .center)
                         .contentShape(Rectangle())
@@ -186,7 +213,7 @@ struct ContentView: View {
                                     .padding(10)
                             }
                         }
-                        .frame(width: size, height: size)
+                        .frame(width: size, height: height)
                     }
                 } else {
                     // Placeholder before first frame arrives
@@ -221,10 +248,13 @@ struct ContentView: View {
                     }
                 }
             }
-            .frame(width: size, height: size)
+            .frame(width: size, height: height)
         }
-        .aspectRatio(1, contentMode: .fit)
+        .aspectRatio(previewAspect, contentMode: .fit)
     }
+
+    /// The preview shows the two 160×256 model crops side by side.
+    private let previewAspect: CGFloat = 320.0 / 256.0
 
     /// Border pulses green on active recording, orange during cooldown, blue otherwise.
     private var previewBorderColor: Color {
@@ -393,7 +423,7 @@ struct ContentView: View {
             cameraManager.stopSession()
         } else {
             // Only resume if no other sheet is still open
-            guard !showingClips, !showingSettings, !showingTestFrames else { return }
+            guard !showingClips, !showingSettings, !showingTestFrames, !showingCalibration else { return }
             cameraManager.startSession()
             modelProcessor.isRunning = true
         }
@@ -426,6 +456,9 @@ struct ContentView: View {
         if cameraManager.isAuthorized && !cameraManager.isSessionRunning {
             cameraManager.startSession()
         }
+
+        // Place the stump box while positioning the camera; the model waits until Done.
+        showingCalibration = true
     }
 
     private func applyConfig() {
@@ -1103,7 +1136,8 @@ struct TestFramesView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Python reference scores")
                     .font(.caption.weight(.semibold))
-                Text("PyTorch fp16 & CoreML fp16 agree to ≤0.0001 on these frames.")
+                Text("References are from the earlier fixed-crop model; regenerate them for s04 "
+                     + "(stump crops, current calibration) before trusting the Δ.")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }

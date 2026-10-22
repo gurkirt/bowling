@@ -35,6 +35,10 @@ struct ScoringView: View {
     @State private var showingEntry = false
     @State private var showingBowlerPicker = false
     @State private var showingSettings = false
+    /// Stump calibration: shown once when scoring opens, and from the menu or preview.
+    @State private var showingCalibration = false
+    @State private var calibrated = false
+    @State private var stumpBox = StumpBox.load()
 
     private var lookup: PlayerLookup { PlayerLookup(players) }
 
@@ -60,6 +64,7 @@ struct ScoringView: View {
             ToolbarItem(placement: .primaryAction) {
                 Menu {
                     Button { showingSettings = true } label: { Label("Recording Settings", systemImage: "gearshape") }
+                    Button { showingCalibration = true } label: { Label("Calibrate Stumps", systemImage: "viewfinder") }
                     Button(role: .destructive) { finishInnings() } label: { Label("End Innings", systemImage: "flag") }
                     Button(role: .destructive) { endMatch() } label: { Label("End Match", systemImage: "flag.checkered") }
                 } label: { Image(systemName: "ellipsis.circle") }
@@ -71,7 +76,19 @@ struct ScoringView: View {
         .onChange(of: mode) { _, _ in updateDetectionState() }
         .onChange(of: selectedBowlerID) { _, _ in updateDetectionState() }
         .onChange(of: showingEntry) { _, _ in updateDetectionState() }
+        .onChange(of: showingCalibration) { _, open in
+            modelProcessor.publishesFullFrame = open
+            updateDetectionState()
+        }
         .sheet(isPresented: $showingSettings) { SettingsView() }
+        .sheet(isPresented: $showingCalibration) {
+            StumpCalibrationView(frame: modelProcessor.fullFramePreview, box: $stumpBox) {
+                modelProcessor.stumpBox = stumpBox
+                calibrated = true
+                showingCalibration = false
+            }
+            .interactiveDismissDisabled()
+        }
         .sheet(isPresented: $showingBowlerPicker) { bowlerPickerSheet }
         .sheet(isPresented: $showingEntry) { entrySheet }
     }
@@ -145,13 +162,14 @@ struct ScoringView: View {
                     ZStack {
                         if let img = modelProcessor.previewImage {
                             Image(uiImage: img).resizable().scaledToFill()
+                                .onTapGesture { showingCalibration = true }
                         } else {
                             Color.black
                             if cameraManager.isAuthorized { ProgressView().tint(.white) }
                             else { Text("Camera\nneeded").font(.caption2).foregroundStyle(.white).multilineTextAlignment(.center) }
                         }
                     }
-                    .frame(width: 110, height: 110)
+                    .frame(width: 138, height: 110)  // two 160×256 crops side by side
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.15)))
 
@@ -383,6 +401,7 @@ struct ScoringView: View {
             if s.ballsThisOver > 0 { selectedBowlerID = currentOverBowlerID(innings) }
         }
         updateDetectionState()
+        if !calibrated { showingCalibration = true }
     }
 
     private func applySettings() {
@@ -397,6 +416,7 @@ struct ScoringView: View {
     private func updateDetectionState() {
         let live = innings.map { !MatchScoring.state(for: $0, in: match).isInningsComplete } ?? false
         modelProcessor.isRunning = (mode == .auto) && selectedBowlerID != nil && live && !showingEntry
+            && !showingCalibration
     }
 
     private func pauseEngine() {

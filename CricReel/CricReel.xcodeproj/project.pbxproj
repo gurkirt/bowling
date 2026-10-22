@@ -11,6 +11,7 @@
 		BFIL002 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF002 /* AppRootView.swift */; };
 		BFIL003 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF003 /* CameraManager.swift */; };
 		BFIL004 /* ModelProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF004 /* ModelProcessor.swift */; };
+		BFIL070 /* StumpCalibration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF070 /* StumpCalibration.swift */; };
 		BFIL005 /* VideoWriter.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF005 /* VideoWriter.swift */; };
 		BFIL006 /* RecordingConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF006 /* RecordingConfiguration.swift */; };
 		BFIL007 /* ScoringModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF007 /* ScoringModels.swift */; };
@@ -39,7 +40,7 @@
 		BFIL029 /* ScoringEntryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF029 /* ScoringEntryView.swift */; };
 		BFIL050 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FREF050 /* Assets.xcassets */; };
 		BFIL051 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = FREF051 /* Preview Assets.xcassets */; };
-		BFIL052 /* fastvit_sa12_exp21.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = FREF052 /* fastvit_sa12_exp21.mlpackage */; };
+		BFIL052 /* fastvit_sa12_s04.mlpackage in Resources */ = {isa = PBXBuildFile; fileRef = FREF052 /* fastvit_sa12_s04.mlpackage */; };
 		BFIL060 /* ScoringEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FREF060 /* ScoringEngineTests.swift */; };
 /* End PBXBuildFile section */
 
@@ -60,6 +61,7 @@
 		FREF002 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
 		FREF003 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		FREF004 /* ModelProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelProcessor.swift; sourceTree = "<group>"; };
+		FREF070 /* StumpCalibration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StumpCalibration.swift; sourceTree = "<group>"; };
 		FREF005 /* VideoWriter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoWriter.swift; sourceTree = "<group>"; };
 		FREF006 /* RecordingConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingConfiguration.swift; sourceTree = "<group>"; };
 		FREF007 /* ScoringModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringModels.swift; sourceTree = "<group>"; };
@@ -88,7 +90,7 @@
 		FREF029 /* ScoringEntryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEntryView.swift; sourceTree = "<group>"; };
 		FREF050 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		FREF051 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		FREF052 /* fastvit_sa12_exp21.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = fastvit_sa12_exp21.mlpackage; sourceTree = "<group>"; };
+		FREF052 /* fastvit_sa12_s04.mlpackage */ = {isa = PBXFileReference; lastKnownFileType = folder.mlpackage; path = fastvit_sa12_s04.mlpackage; sourceTree = "<group>"; };
 		FREF060 /* ScoringEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScoringEngineTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -135,6 +137,7 @@
 				FREF002 /* AppRootView.swift */,
 				FREF003 /* CameraManager.swift */,
 				FREF004 /* ModelProcessor.swift */,
+				FREF070 /* StumpCalibration.swift */,
 				FREF005 /* VideoWriter.swift */,
 				FREF006 /* RecordingConfiguration.swift */,
 				FREF007 /* ScoringModels.swift */,
@@ -161,7 +164,7 @@
 				FREF030 /* ClipOverlay.swift */,
 				FREF028 /* DeliveryFormatting.swift */,
 				FREF029 /* ScoringEntryView.swift */,
-				FREF052 /* fastvit_sa12_exp21.mlpackage */,
+				FREF052 /* fastvit_sa12_s04.mlpackage */,
 				FREF050 /* Assets.xcassets */,
 				GRP0000004 /* Preview Content */,
 			);
@@ -267,7 +270,7 @@
 			files = (
 				BFIL051 /* Preview Assets.xcassets in Resources */,
 				BFIL050 /* Assets.xcassets in Resources */,
-				BFIL052 /* fastvit_sa12_exp21.mlpackage in Resources */,
+				BFIL052 /* fastvit_sa12_s04.mlpackage in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -289,6 +292,7 @@
 				BFIL002 /* AppRootView.swift in Sources */,
 				BFIL003 /* CameraManager.swift in Sources */,
 				BFIL004 /* ModelProcessor.swift in Sources */,
+				BFIL070 /* StumpCalibration.swift in Sources */,
 				BFIL005 /* VideoWriter.swift in Sources */,
 				BFIL006 /* RecordingConfiguration.swift in Sources */,
 				BFIL007 /* ScoringModels.swift in Sources */,
