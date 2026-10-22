@@ -1,5 +1,6 @@
 .DS_Store
-analysis/
+analysis/motion_gate_cache.json
+analysis/chart.html
 ablation_logs/
 ablation_logs*
 trainins*
@@ -13,6 +14,11 @@ val_videos/
 *.mov
 *.mp4
 trainings/
+trainings_*/
+experiments/
+experiments/trainings/
+training_set_stumps/
+sam3_out/
 __pycache__/
 chart.html
 .AppleDouble

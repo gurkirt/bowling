@@ -1,0 +1,55 @@
+301 videos checked, 7 skipped
+delivery start offsets (decoded index - labelled index), 330 deliveries:
+  -20: 1  -17: 1  -8: 1  -5: 2  -4: 1  -3: 3  -2: 6  -1: 1  +0: 313  +1: 1
+  |offset| <= 1: 315   2-4: 10   >= 5: 5
+
+videos with any non-zero offset: 15 / 301
+  IMG_8397                                      fps  50.010  offsets -20 .. -20
+  IMG_9398_val                                  fps  59.195  offsets -17 .. +2
+  IMG_8400                                      fps  56.838  offsets -8 .. -8
+  IMG_8300                                      fps  57.897  offsets -5 .. -5
+  IMG_8318                                      fps  58.442  offsets -5 .. -5
+  IMG_8287                                      fps  59.490  offsets -4 .. -4
+  IMG_8308                                      fps  59.027  offsets -3 .. -3
+  IMG_8321                                      fps  59.236  offsets -3 .. -3
+  IMG_8335                                      fps  58.629  offsets -3 .. -3
+  IMG_8302                                      fps  58.877  offsets -2 .. -2
+  IMG_8305                                      fps  58.991  offsets -2 .. -2
+  IMG_8328                                      fps  58.981  offsets -2 .. -2
+  IMG_8332                                      fps  59.093  offsets -2 .. -2
+  IMG_8396                                      fps  59.265  offsets -2 .. -2
+  IMG_8516                                      fps  59.720  offsets -1 .. -1
+
+30 labelled frames without a clean match (static scene or decode issue):
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 118: {'offset': 0, 'diff': 0.0, 'runner_up': 0.08}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 203: {'offset': 0, 'diff': 0.0, 'runner_up': 0.04}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 495: {'offset': 0, 'diff': 0.0, 'runner_up': 0.07}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 604: {'offset': 0, 'diff': 0.0, 'runner_up': 0.13}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 675: {'offset': 0, 'diff': 0.0, 'runner_up': 0.02}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 676: {'offset': 0, 'diff': 0.0, 'runner_up': 0.02}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 678: {'offset': 0, 'diff': 0.0, 'runner_up': 0.04}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 799: {'offset': 0, 'diff': 0.0, 'runner_up': 0.32}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 878: {'offset': 0, 'diff': 0.0, 'runner_up': 0.05}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 1084: {'offset': 0, 'diff': 0.0, 'runner_up': 0.05}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 1174: {'offset': 0, 'diff': 0.0, 'runner_up': 0.05}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 1296: {'offset': 0, 'diff': 0.0, 'runner_up': 0.21}
+  Gully_cricket_Left-arm-pacer+Leg-spinner_ciOLUORjbZE_converted frame 1404: {'offset': 0, 'diff': 0.0, 'runner_up': 0.15}
+  Gully_cricket_soy_mZTE7BE_converted frame 380: {'offset': 0, 'diff': 0.0, 'runner_up': 0.08}
+  Gully_cricket_soy_mZTE7BE_converted frame 383: {'offset': 0, 'diff': 0.0, 'runner_up': 0.02}
+  Gully_cricket_soy_mZTE7BE_converted frame 486: {'offset': 0, 'diff': 0.0, 'runner_up': 0.1}
+  Gully_cricket_soy_mZTE7BE_converted frame 492: {'offset': 0, 'diff': 0.0, 'runner_up': 0.06}
+  Gully_cricket_soy_mZTE7BE_converted frame 615: {'offset': 0, 'diff': 0.0, 'runner_up': 0.08}
+  Gully_cricket_soy_mZTE7BE_converted frame 749: {'offset': 0, 'diff': 0.0, 'runner_up': 0.17}
+  Gully_cricket_soy_mZTE7BE_converted frame 754: {'offset': 0, 'diff': 0.0, 'runner_up': 0.11}
+  Gully_cricket_soy_mZTE7BE_converted frame 1022: {'offset': 0, 'diff': 0.0, 'runner_up': 0.08}
+  Gully_cricket_soy_mZTE7BE_converted frame 1168: {'offset': 0, 'diff': 0.0, 'runner_up': 0.03}
+  Gully_cricket_soy_mZTE7BE_converted frame 1253: {'offset': 0, 'diff': 0.0, 'runner_up': 0.06}
+  Gully_cricket_soy_mZTE7BE_converted frame 1335: {'offset': 0, 'diff': 0.0, 'runner_up': 0.11}
+  Gully_cricket_soy_mZTE7BE_converted frame 1409: {'offset': 0, 'diff': 0.0, 'runner_up': 0.16}
+  Gully_cricket_soy_mZTE7BE_converted frame 1414: {'offset': 0, 'diff': 0.0, 'runner_up': 0.08}
+  Gully_cricket_soy_mZTE7BE_converted frame 1471: {'offset': 0, 'diff': 0.0, 'runner_up': 0.13}
+  Gully_cricket_soy_mZTE7BE_converted frame 1540: {'offset': 0, 'diff': 0.0, 'runner_up': 0.14}
+  Gully_cricket_soy_mZTE7BE_converted frame 1596: {'offset': 0, 'diff': 0.0, 'runner_up': 0.06}
+  Gully_cricket_soy_mZTE7BE_converted frame 1696: {'offset': 0, 'diff': 0.0, 'runner_up': 0.15}
+
+GullyCrickett_live_H2QenGyqSWU_cut (skipped above: stale video field, since fixed) was scanned separately: 35 deliveries, all offset 0. Merged into seek_offsets.json.

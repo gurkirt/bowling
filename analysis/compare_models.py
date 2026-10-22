@@ -5,7 +5,7 @@ the exported Core ML (fp16) .mlpackage, then print a side-by-side summary
 and save an interactive Altair comparison chart.
 
 Usage:
-    python compare_models.py <video> \\
+    python analysis/compare_models.py <video> \\
         --pt         models/fastvit_sa12_exp07.pt \\
         --mlpackage  exports/fastvit_t12.mlpackage \\
         --output     compare_chart.html
@@ -26,7 +26,8 @@ import coremltools as ct
 import altair as alt
 import pandas as pd
 
-from modellib import crop, read_start_end
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))  # repo root
+from modellib import crop, read_start_end  # noqa: E402
 
 
 IMAGENET_MEAN = [0.485, 0.456, 0.406]
@@ -286,7 +287,7 @@ def main() -> None:
                         default=pathlib.Path("exports/fastvit_t12.mlpackage"),
                         help="Core ML .mlpackage (default: exports/fastvit_t12.mlpackage)")
     parser.add_argument("--output",    type=pathlib.Path,
-                        default=pathlib.Path("compare_chart.html"),
+                        default=pathlib.Path("analysis/compare_chart.html"),
                         help="Output HTML chart path (default: compare_chart.html)")
     args = parser.parse_args()
 

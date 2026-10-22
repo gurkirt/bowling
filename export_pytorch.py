@@ -17,7 +17,7 @@ The result is a plain dict saved with torch.save -> loadable on a Mac with just
 run export_executorch.py on it to produce the CPU / CoreML / mlpackage formats.
 
 Usage:
-  python export_pytorch.py trainings2/exp07_fastvit_sa12/.../best_model.pth
+  python export_pytorch.py experiments/trainings/round2/exp07_fastvit_sa12/.../best_model.pth
   python export_pytorch.py <ckpt> --output models/fastvit_sa12.pt
   python export_pytorch.py <ckpt> --use-raw      # use raw (non-EMA) weights
   python export_pytorch.py <ckpt> --torchscript  # also emit a CPU TorchScript .pt

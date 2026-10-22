@@ -30,7 +30,7 @@ def load_experiment_results(exp_dir):
 
 def analyze_ablation_studies():
     """Analyze all ablation study experiments"""
-    trainings_dir = Path('trainings')
+    trainings_dir = Path('experiments/trainings/round1')
     
     if not trainings_dir.exists():
         print(f"Error: {trainings_dir} directory not found")
@@ -80,7 +80,7 @@ def analyze_ablation_studies():
 
 def monitor_experiment_progress():
     """Monitor real-time progress of experiments"""
-    log_dir = Path('ablation_logs')
+    log_dir = Path('experiments/logs/round1')
     
     if not log_dir.exists():
         print(f"Log directory {log_dir} not found")
@@ -113,6 +113,6 @@ if __name__ == '__main__':
         if sys.argv[1] == 'progress':
             monitor_experiment_progress()
         else:
-            print("Usage: python analyze_ablation_results.py [progress]")
+            print("Usage: python analysis/analyze_ablation_results.py [progress]")
     else:
         analyze_ablation_studies()

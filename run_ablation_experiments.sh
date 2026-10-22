@@ -18,11 +18,11 @@ train_model() {
     --focal_alpha "$3" \
     --focal_gamma "$4" \
     --neg_skip_prob "$5" \
-    --output_dir "trainings/$6" \
-    > "ablation_logs/$6.log" 2>&1 
+    --output_dir "experiments/trainings/round1/$6" \
+    > "experiments/logs/round1/$6.log" 2>&1 
 }
 
-mkdir -p ablation_logs
+mkdir -p experiments/logs/round1
 
 #            gpu  model                     alpha gamma neg_skip tag
 train_model   0   mobilenetv4_conv_small    0.75  2.0   0.5      exp1_small_a75_g2_ns50 &
@@ -31,4 +31,4 @@ train_model   0   mobilenetv4_conv_medium   0.75  2.0   0.5      exp3_medium_a75
 train_model   1   mobilenetv4_conv_medium   0.90  2.0   0.8      exp4_medium_a90_g2_ns80 &
 
 wait
-echo "All experiments finished. Logs in ablation_logs/, models in trainings/."
+echo "All experiments finished. Logs in experiments/logs/round1/, models in experiments/trainings/round1/."

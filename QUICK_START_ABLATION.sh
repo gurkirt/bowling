@@ -9,19 +9,19 @@
 # nvidia-smi -i 0,1 -l 1
 
 # Option B: Watch log files
-tail -f ablation_logs/exp*.log
+tail -f experiments/logs/round1/exp*.log
 
 # Option C: Progress summary
-python analyze_ablation_results.py progress
+python analysis/analyze_ablation_results.py progress
 
 # 3. STOP ALL EXPERIMENTS (if needed)
 pkill -f train_classifier.py
 
 # 4. VIEW FINAL RESULTS
-python analyze_ablation_results.py
+python analysis/analyze_ablation_results.py
 
 # 5. COMPARE BEST MODELS
-# Results are in trainings/exp{1,2,3,4}_*/ directories
+# Results are in experiments/trainings/round1/exp{1,2,3,4}_*/ directories
 # Each contains:
 #   - best_model.pth (best checkpoint)
 #   - training_history.png (loss/accuracy curves)

@@ -44,14 +44,14 @@ def crop_frame(pil_img: Image.Image) -> Image.Image:
 images = {}
 
 # 1) Already-cropped 256×256
-p = pathlib.Path("debug_frame.png")
+p = pathlib.Path("analysis/debug_frame.png")
 if p.exists():
     img = Image.open(p).convert("RGB")
     print(f"[1] {p}  →  {img.size} (no crop needed)")
     images["debug_frame (256×256, pre-cropped)"] = img.resize((256, 256), Image.BILINEAR)
 
 # 2) Full 1080×1920 portrait frame — apply crop then resize
-p = pathlib.Path("debug_frame_full.png")
+p = pathlib.Path("analysis/debug_frame_full.png")
 if p.exists():
     raw = Image.open(p).convert("RGB")
     print(f"[2] {p}  →  raw {raw.size}")

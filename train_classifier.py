@@ -93,12 +93,40 @@ class ModelEMA:
             ema_buffers[name].copy_(m_buf)
 
 
-def get_transforms(input_height=256, input_width=256, augment=True) -> tuple[transforms.Compose, transforms.Compose]:
+class MarginCrop:
+    """Crop the model input out of an image saved with `margin` extra context per side
+    (stump_training_set.py). With jitter, the crop is rescaled by up to +-scale_jitter
+    and shifted by up to +-shift_jitter of its size, mimicking an imperfect stump
+    calibration; without, it is the exact centre crop the app will feed the model.
+    Uses the `random` module, so the dataset's per-window seeding keeps every frame of
+    a multi-frame sample on the same crop."""
+
+    def __init__(self, margin: float, scale_jitter: float = 0.0, shift_jitter: float = 0.0):
+        self.margin, self.scale_jitter, self.shift_jitter = margin, scale_jitter, shift_jitter
+
+    def __call__(self, img):
+        W, H = img.size
+        cw, ch = W / (1 + 2 * self.margin), H / (1 + 2 * self.margin)
+        cx, cy = W / 2, H / 2
+        if self.scale_jitter or self.shift_jitter:
+            s = random.uniform(1 - self.scale_jitter, 1 + self.scale_jitter)
+            cw, ch = cw * s, ch * s
+            cx += random.uniform(-self.shift_jitter, self.shift_jitter) * cw
+            cy += random.uniform(-self.shift_jitter, self.shift_jitter) * ch
+        x1, y1 = max(0.0, cx - cw / 2), max(0.0, cy - ch / 2)
+        return img.crop((round(x1), round(y1), round(min(W, x1 + cw)), round(min(H, y1 + ch))))
+
+
+def get_transforms(input_height=256, input_width=256, augment=True, crop_margin=0.0,
+                   jitter_scale=0.0, jitter_shift=0.0, hflip=True) -> tuple[transforms.Compose, transforms.Compose]:
     """Get data transforms for rectangular images"""
+    train_crop = [MarginCrop(crop_margin, jitter_scale if augment else 0.0,
+                             jitter_shift if augment else 0.0)] if crop_margin else []
+    val_crop = [MarginCrop(crop_margin)] if crop_margin else []
     if augment:
-        train_transform = transforms.Compose([
+        train_transform = transforms.Compose(train_crop + [
             transforms.Resize((input_height, input_width)),
-            transforms.RandomHorizontalFlip(p=0.5),
+            transforms.RandomHorizontalFlip(p=0.5 if hflip else 0.0),
             transforms.RandomRotation(degrees=10),  # Reduced rotation for rectangular images
             transforms.ColorJitter(brightness=0.25, contrast=0.25, saturation=0.25, hue=0.15),
             transforms.RandomAffine(degrees=10, translate=(0.05, 0.05)),  # Reduced translation
@@ -107,13 +135,13 @@ def get_transforms(input_height=256, input_width=256, augment=True) -> tuple[tra
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
     else:
-        train_transform = transforms.Compose([
+        train_transform = transforms.Compose(train_crop + [
             transforms.Resize((input_height, input_width)),
             transforms.ToTensor(),
             transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
         ])
     
-    val_transform = transforms.Compose([
+    val_transform = transforms.Compose(val_crop + [
         transforms.Resize((input_height, input_width)),
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
@@ -422,7 +450,7 @@ def main():
     parser.add_argument('--num_folds', type=int, default=10, help='Number of folds used to define the val split')
     parser.add_argument('--val_split', choices=['fold', 'val_suffix'], default='fold',
                        help="Validation split: 'fold' (held-out fold + _val videos) or 'val_suffix' (only _val videos for val, everything else trains)")
-    parser.add_argument('--output_dir', default='trainings', help='Output directory')
+    parser.add_argument('--output_dir', default='experiments/trainings/misc', help='Output directory')
 
     
     # Model arguments
@@ -445,8 +473,18 @@ def main():
     parser.add_argument('--num_frames', type=int, default=1, help='Frames per sample (early-fused channel stack). 1 = single frame')
     parser.add_argument('--frame_stride', type=int, default=1, help='Temporal stride between stacked frames')
     parser.add_argument('--target_fps', type=int, default=0,
-                       help='If >0, normalize multi-frame stride per video to this fps (e.g. 30: a 60fps clip skips every other frame, a 30fps clip uses consecutive frames). Requires fps_map.json and num_frames>1.')
+                       help='If >0, normalize multi-frame stride per video to this fps (e.g. 30: a 60fps clip skips every other frame, a 30fps clip uses consecutive frames). Requires labels/fps_map.json and num_frames>1.')
     parser.add_argument('--augment', action='store_true', default=True, help='Use data augmentation')
+    parser.add_argument('--crop_margin', type=float, default=0.0,
+                       help='Context margin the frames were saved with (stump_training_set.py --margin, e.g. 0.15); '
+                            'the model input is the centre crop. 0 = use the whole saved image.')
+    parser.add_argument('--jitter_scale', type=float, default=0.1,
+                       help='With --crop_margin: random +- rescale of the training crop (stump height error).')
+    parser.add_argument('--jitter_shift', type=float, default=0.04,
+                       help='With --crop_margin: random +- shift of the training crop as a fraction of its size '
+                            '(0.04 ~ 0.1 stump heights horizontally).')
+    parser.add_argument('--no_hflip', dest='hflip', action='store_false', default=True,
+                       help='Disable random horizontal flip (stump crops are already mirrored to one side).')
     
     # Class balancing arguments
     parser.add_argument('--class_balance', choices=['none', 'focal'], default='focal', 
@@ -535,7 +573,9 @@ def main():
         print(f"Run 'tensorboard --logdir {log_dir}' to view logs")
                 
     # Get transforms
-    train_transform, val_transform = get_transforms(args.input_height, args.input_width, args.augment)
+    train_transform, val_transform = get_transforms(args.input_height, args.input_width, args.augment,
+                                                    args.crop_margin, args.jitter_scale, args.jitter_shift,
+                                                    args.hflip)
     
     # Create datasets
     train_dataset = BowlingDataset(Path(args.data_dir), Mode.TRAIN, fold=args.fold, num_folds=args.num_folds,

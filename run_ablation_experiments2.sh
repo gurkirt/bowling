@@ -2,7 +2,7 @@
 # Ablation round 2: 16 experiments, fold 3, run 2 at a time (one per GPU: 0 and 1).
 # Hardware: 2x RTX 2080 (11 GB VRAM each) -> one experiment per GPU at a time.
 #
-# What we learned from round 1 (see ablation_logs/exp1..4):
+# What we learned from round 1 (see experiments/logs/round1/exp1..4):
 #   - medium > small (mainly higher recall)
 #   - neg_skip_prob=0.5 (keep ~50% of negatives) beat 0.8 every time
 #   - focal alpha=0.90 did not help over 0.75
@@ -25,7 +25,7 @@
 
 export HF_HUB_OFFLINE=1
 
-mkdir -p ablation_logs2
+mkdir -p experiments/logs/round2
 
 train_model() {
   # args: $1=gpu $2=model $3=alpha $4=gamma $5=neg_skip $6=batch $7=ema_decay $8=tag
@@ -44,13 +44,13 @@ train_model() {
     --neg_skip_prob "$5" \
     --ema \
     --ema_decay "$7" \
-    --output_dir "trainings2/$8" \
-    > "ablation_logs2/$8.log" 2>&1
+    --output_dir "experiments/trainings/round2/$8" \
+    > "experiments/logs/round2/$8.log" 2>&1
 }
 
 # ---------------------------------------------------------------------------
 # RUN:      ./run_ablation_experiments2.sh        (runs all 8 waves, 2 GPUs each)
-# WATCH:    tail -f ablation_logs2/*.log
+# WATCH:    tail -f experiments/logs/round2/*.log
 # STOP:     pkill -f train_classifier.py
 # Config:   train_model  gpu  model  alpha gamma neg_skip batch ema_decay  tag
 # Batch sizes fit 11 GB at 256x256 (no AMP); shrink if you OOM.
@@ -99,6 +99,6 @@ train_model 1 mobilenetv4_conv_medium   0.75 2.0 0.0  64 0.999 exp10_medium_ns00
 # train_model 1 mobilenetv4_conv_medium   0.75 2.0 0.5 64 0.9995 exp16_medium_ema9995  &
 wait
 
-echo "All 16 experiments finished. Logs in ablation_logs2/, models in trainings2/."
+echo "All 16 experiments finished. Logs in experiments/logs/round2/, models in experiments/trainings/round2/."
 
 

@@ -6,8 +6,11 @@ test.py - Test a trained bowling classifier on a single image
 import os
 import argparse
 import torch.nn.functional as F
+import pathlib
+import sys
 from pathlib import Path
-from modellib import Device, Model
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))  # repo root
+from modellib import Device, Model  # noqa: E402
 from PIL import Image
 
 

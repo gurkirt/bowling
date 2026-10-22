@@ -41,6 +41,13 @@ def _list_videos(frames_dir: Path) -> List[Path]:
     return sorted(p for p in frames_dir.iterdir() if p.is_dir())
 
 
+def _group_key(video: Path) -> str:
+    """Source video stem: stump_training_set.py writes two crop folders per video
+    (<stem>__L, <stem>__R) which must land in the same fold."""
+    name = video.name
+    return name[:-3] if name.endswith(("__L", "__R")) else name
+
+
 def _load_fps_map(frames_dir: Path) -> dict:
     """Load video_stem -> fps map, searching common locations.
 
@@ -51,8 +58,8 @@ def _load_fps_map(frames_dir: Path) -> dict:
     candidates = [
         frames_dir / "fps_map.json",
         frames_dir.parent / "fps_map.json",
+        Path("labels") / "fps_map.json",
         Path("fps_map.json"),
-        Path("training_set") / "fps_map.json",
     ]
     for cand in candidates:
         if cand.exists():
@@ -113,7 +120,8 @@ class BowlingDataset(Dataset):
             print(f"  fps-normalized striding to {target_fps} fps ({len(fps_map)} videos in fps_map)")
 
         videos = _list_videos(Path(frames_dir))
-        num_videos = len(videos)
+        groups = sorted({_group_key(v) for v in videos})
+        group_index = {g: i for i, g in enumerate(groups)}
 
         # Each sample references its video's full (ordered) frame list, a position,
         # and the per-video stride, so the multi-frame window can be assembled on the fly.
@@ -121,13 +129,14 @@ class BowlingDataset(Dataset):
         self.labels: List[int] = []
         selected_videos = 0
         for i, video in enumerate(videos):
-            is_val = _is_val_video(video, i, num_videos, fold, num_folds, val_split)
+            key = _group_key(video)
+            is_val = _is_val_video(Path(key), group_index[key], len(groups), fold, num_folds, val_split)
             if (mode == Mode.VAL) != is_val:
                 continue
             selected_videos += 1
 
             if target_fps and num_frames > 1:
-                fps = fps_map.get(video.name) or fps_map.get(video.stem)
+                fps = fps_map.get(key) or fps_map.get(Path(key).stem)
                 stride = max(1, round(fps / target_fps)) if fps else frame_stride
             else:
                 stride = frame_stride

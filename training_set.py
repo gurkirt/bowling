@@ -21,6 +21,7 @@ import shutil
 import modellib
 import multiprocessing as mp
 from multiprocessing import Pool
+from stump_training_set import OCCLUDED_PAD_S  # same exclusion as the stump-crop set
 
 Frame: TypeAlias = np.ndarray 
 
@@ -36,24 +37,38 @@ def glob_videos(video_dir: pathlib.Path, istest: bool) -> Iterator[pathlib.Path]
     if not video_found:
         raise ValueError("No video files found in the directory: %s." % video_dir)
 
-def write_all(output_dir: pathlib.Path, video_dir: pathlib.Path, istest: bool) -> None:
+def occluded_events(review_path: pathlib.Path) -> dict:
+    """{video_stem: {event_index}} for deliveries marked occluded ('o') in label_stumps.py."""
+    if not review_path.exists():
+        return {}
+    review = json.load(open(review_path, encoding="utf-8"))
+    return {stem: {int(k) for k, v in d.items() if v.get("status") == "occluded" and k != "none"}
+            for stem, d in review.items()}
+
+
+def write_all(output_dir: pathlib.Path, video_dir: pathlib.Path, istest: bool,
+              review_path: pathlib.Path = pathlib.Path("labels/stumps_review.json")) -> None:
     # if output_dir.exists():
     #     shutil.rmtree(output_dir)
     frames_dir = output_dir / 'frames'
     frames_dir.mkdir(parents=True, exist_ok=True)
     video_list = list(glob_videos(video_dir, istest))
-    print(f"Extracting frames from {len(video_list)} videos in {video_dir} to {frames_dir}")
+    occluded = occluded_events(review_path)
+    print(f"Extracting frames from {len(video_list)} videos in {video_dir} to {frames_dir}; "
+          f"{sum(map(len, occluded.values()))} occluded deliveries left out (+-{OCCLUDED_PAD_S}s)")
     with Pool(processes=min(8, mp.cpu_count())) as pool:
-        pool.starmap(write_one, [(video, frames_dir) 
+        pool.starmap(write_one, [(video, frames_dir, occluded.get(video.stem, set()))
                                  for video in video_list])
 
 
 
-def write_one(video: pathlib.Path, frames_dir: pathlib.Path) -> None:
+def write_one(video: pathlib.Path, frames_dir: pathlib.Path, occluded: set = frozenset()) -> None:
     """
     Decode every frame of a video to frames_dir/<video_stem>/, cropped, with the
     in-action label encoded in the filename. No subsampling happens here so the
     dataset can build multi-frame windows and sample negatives on the fly.
+    Frames within OCCLUDED_PAD_S seconds of an occluded delivery (index into
+    temporal_events) are not written at all.
     """
     try:
         events = modellib.read_start_end(video)
@@ -63,7 +78,15 @@ def write_one(video: pathlib.Path, frames_dir: pathlib.Path) -> None:
 
     out_dir = frames_dir / video.stem
     out_dir.mkdir(exist_ok=True, parents=True)
+    for old in out_dir.glob("*.jpg"):  # labels may have changed: a stale frame_i_<label> would duplicate frame i
+        old.unlink()
+    cap = cv2.VideoCapture(str(video))
+    pad = round(OCCLUDED_PAD_S * (cap.get(cv2.CAP_PROP_FPS) or 30.0))
+    cap.release()
+    excluded = [(start - 2 - pad, end + pad) for k, (start, end) in enumerate(events) if k in occluded]
     for i, frame in enumerate(_frames(video)):
+        if any(a <= i <= b for a, b in excluded):
+            continue
         in_action = any(start - 2 <= i <= end for (start, end) in events)
         framepath = out_dir / f'frame_{i:05d}_{str(in_action).lower()}.jpg'
         cv2.imwrite(str(framepath), modellib.crop(frame))
@@ -129,10 +152,12 @@ def main():
                        help="When --summary is set, the script displays stats on the produced training set.")
     parser.add_argument("--summary_dir", type=pathlib.Path, default=None,
                        help="The frames directory for the summary is the first positional arg.")
+    parser.add_argument("--stumps_review", type=pathlib.Path, default=pathlib.Path("labels/stumps_review.json"),
+                       help="label_stumps.py progress file; deliveries marked 'occluded' there are left out.")
     parser.add_argument("--fps_map", default=False, action='store_true',
                        help="Probe each video's fps and write fps_map.json (used for fps-normalized multi-frame striding).")
-    parser.add_argument("--fps_map_out", type=pathlib.Path, default=pathlib.Path("fps_map.json"),
-                       help="Output path for the fps map (default: fps_map.json).")
+    parser.add_argument("--fps_map_out", type=pathlib.Path, default=pathlib.Path("labels/fps_map.json"),
+                       help="Output path for the fps map (default: labels/fps_map.json).")
 
     args = parser.parse_args()
     if args.fps_map:
@@ -145,7 +170,7 @@ def main():
         return
     if not args.video_dir:
         parser.error("The video directory does not exist: %s." % args.video_dir)
-    write_all(args.output_dir, args.video_dir, args.test)
+    write_all(args.output_dir, args.video_dir, args.test, args.stumps_review)
 
 if __name__ == '__main__':
     main()
