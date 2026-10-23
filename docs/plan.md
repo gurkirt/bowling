@@ -127,3 +127,80 @@ Let's keep it as it now, I have few more things to correct in the App
 
 9. Issue in overlay, in highlight we are pasting text on previous text. Also make use of reel name of Team and Players. Show each team score like in miniscoreboard in first line, second line deleivery number and who to whom, next line outcome runs or wicket type. Third line should be number and only type of out, do not add OUT for wicket just the Dismissal type. Maybe we can use more contrast in overlay white is mixing with background which is bright sometimes green or brown or blue for sky. 
  
+Status (2026-10-23): items 0–9 above appear implemented in the current code, except that
+"Min bowlers" is saved with the match but `MatchScoring.eligibleBowlers` doesn't enforce it (H5 below).
+
+## Phase 1.5 — Ease-of-use ideas (proposed 2026-10-23, edit before implementing)
+
+Delete what you don't want, edit the rest, tick what's approved. Rough effort: S = hours,
+M = a day or two, L = several days.
+
+### A. Never lose a delivery
+- [ ] A1 (M) Keep detecting while a ball is being scored. Today the camera stops while the
+  ball-entry sheet is open (`ScoringView.shouldCapture`), and a clip that finishes while it's
+  open is dropped (`ScoringView.handleClipSaved`). Queue unscored clips with a "2 balls to
+  score" badge and score them in order.
+- [ ] A2 (S) "Clip that" button for deliveries the model misses: saves the last few seconds
+  via `VideoWriter.triggerRecording()`; the clip then goes through the normal scoring flow.
+
+### B. Scorer away from the phone
+- [ ] B1 (S) Beep + vibration when a delivery is captured, so the scorer knows without looking.
+- [ ] B2 (L) Remote score pad on a second phone (MultipeerConnectivity) or an Apple Watch: the
+  camera phone records on the tripod, the scorer enters outcomes on their own device.
+
+### C. Faster setup
+- [ ] C1 (S) Paste a squad list (one name per line or comma-separated, e.g. from WhatsApp) to
+  add many players to a team at once.
+- [ ] C2 (S) Fill reel names automatically as you type: first name for players (≤12), initials
+  for teams (≤6), still editable. The logic exists in `TeamListView.reelName(for:)`.
+- [ ] C3 (S) Add a new player from the lineup picker / team edit screen.
+- [ ] C4 (S) Remember the last match format (overs, players, extras, bowler quotas) as defaults.
+- [ ] C5 (S) "Rematch" on a finished match: copies teams, lineups and format into a new match.
+
+### D. Calibration that doesn't nag
+- [ ] D1 (M) Calibrate once per match. On re-entering Score Live, show the last calibration
+  frame faintly over the live view with one button, "Camera hasn't moved"; full calibration
+  only if it has.
+- [ ] D2 (S) Warn when the stumps are too small (crops are sized from stump height, so small
+  stumps mean blurry crops): "zoom in or move closer".
+- [ ] D3 (M) Zoom control in calibration (only the wide camera is used today, no zoom).
+- [ ] D4 (S) Tilt level (CoreMotion) so the stump base line can be made horizontal.
+
+### E. Protect users' data (before anyone outside the team uses it)
+- [ ] E1 (M) Replace the "delete the database when the schema changes" fallback in
+  `CricReelApp.init` with versioned SwiftData migrations.
+- [ ] E2 (M) Export / backup of matches (optionally with clips).
+- [ ] E3 (S) Delete a match's clips and reels when the match is deleted (they stay in
+  Documents today).
+- [ ] E4 (M) Storage screen: space used per match; "keep highlights only" after a match.
+
+### F. Sharing
+- [ ] F1 (S) Share the scorecard as text or an image (for WhatsApp groups).
+- [ ] F2 (M) Reel opening card (teams, date, venue) and closing result card, with the app logo.
+- [ ] F3 (M) Per-player reels from Journeys ("all my boundaries / wickets").
+- [ ] F4 (S) Option to save reels to Photos automatically (the Photos permission text is in
+  the project but unused).
+
+### G. Match-day conditions
+- [ ] G1 (S) High-contrast "sunlight" mode with larger text.
+- [ ] G2 (M) Watch `ProcessInfo.thermalState` and battery: warn when the phone is hot and run
+  the model less often (e.g. every 2nd frame) until it cools.
+- [ ] G3 (S) Dim the screen while watching on a tripod; full brightness on touch.
+
+### H. Club-cricket rules and corrections
+- [ ] H1 (S) Retired hurt (not out, can return) and retired out.
+- [ ] H2 (M) Last-man-stands option.
+- [ ] H3 (L) Edit any past ball, not just undo the last one.
+- [ ] H4 (S) Change a batter mid-over (injury, wrong batter entered).
+- [ ] H5 (S) Enforce "Min bowlers" when picking the next bowler.
+
+### I. Use scoring to improve the model
+- [ ] I1 (M) Export labelled clips: scored clips are positives, discarded clips are false
+  triggers, balls added by hand are misses; include the stump box, in a form
+  `stump_training_set.py` can take.
+
+### J. CriClips
+- [ ] J1 (L) Fold CriClips into CricReel as a "Nets mode" (record each ball per bowler, no
+  scoring, slow-motion review) and retire the separate app.
+
+Suggested first batch: A1, A2, B1, C1, C5, and E1 before outside users.
