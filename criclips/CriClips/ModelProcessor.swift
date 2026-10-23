@@ -19,7 +19,7 @@ class ModelProcessor: ObservableObject {
     @Published var isModelLoaded = false
     /// Small thumbnail displayed in the live UI (updated every 4 frames).
     @Published var previewImage: UIImage?
-    /// The two model-input crops side by side (left, mirrored right), shown in the main UI.
+    /// Downscaled full camera frame, shown in the main UI.
     @Published var bigPreviewImage: UIImage?
     /// Downscaled full camera frame, published while `publishesFullFrame` is set (calibration).
     @Published var fullFramePreview: UIImage?
@@ -152,11 +152,11 @@ class ModelProcessor: ObservableObject {
         let crops = stumpCrops(from: image)
         let w = StumpCrops.inputWidth, h = StumpCrops.inputHeight
 
-        // ── Step 2: Update UI preview every 4 frames ─────────────────────────
+        // ── Step 2: Update the full-frame UI preview every 4 frames ──────────
         if frameCounter % 4 == 0 {
-            let pair = crops.right.transformed(by: CGAffineTransform(translationX: CGFloat(w), y: 0))
-                .composited(over: crops.left)
-            if let ui = renderUIImage(from: pair, targetSize: CGSize(width: 2 * w, height: h)) {
+            // Full frame (the stump guide is drawn over it by the view).
+            let size = CGSize(width: 360, height: (360 * image.extent.height / image.extent.width).rounded())
+            if let ui = renderUIImage(from: image, targetSize: size) {
                 DispatchQueue.main.async { [weak self] in
                     self?.bigPreviewImage = ui
                     self?.previewImage = ui

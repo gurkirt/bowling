@@ -175,13 +175,14 @@ struct ScoringView: View {
                         if let img = modelProcessor.previewImage {
                             Image(uiImage: img).resizable().scaledToFit()
                                 .onTapGesture { showingCalibration = true }
+                                .overlay(StumpGuideOverlay(box: stumpBox))
                         } else {
                             Color.black
                         }
                         previewStatusOverlay
                     }
-                    .aspectRatio(320.0 / 256.0, contentMode: .fit)  // two 160×256 crops side by side
-                    .frame(maxWidth: .infinity)
+                    .aspectRatio(9.0 / 16.0, contentMode: .fit)  // full portrait frame
+                    .frame(maxWidth: .infinity, maxHeight: 420)
                     .clipShape(RoundedRectangle(cornerRadius: 14))
                     .overlay(RoundedRectangle(cornerRadius: 14).stroke(.white.opacity(0.15)))
 

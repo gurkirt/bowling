@@ -171,14 +171,15 @@ struct ContentView: View {
 
     private var cropPreviewSection: some View {
         GeometryReader { geo in
-            let size = geo.size.width
-            let height = size / previewAspect
+            let height = min(geo.size.width / previewAspect, 440)
+            let size = height * previewAspect
             ZStack {
                 if let img = modelProcessor.bigPreviewImage {
                     Image(uiImage: img)
                         .resizable()
                         .scaledToFill()
                         .frame(width: size, height: height)
+                        .overlay(StumpGuideOverlay(box: stumpBox))
                         .clipped()
                         .scaleEffect(previewScale, anchor: .center)
                         .contentShape(Rectangle())
@@ -249,12 +250,13 @@ struct ContentView: View {
                 }
             }
             .frame(width: size, height: height)
+            .frame(maxWidth: .infinity)
         }
-        .aspectRatio(previewAspect, contentMode: .fit)
+        .frame(height: 440)
     }
 
-    /// The preview shows the two 160×256 model crops side by side.
-    private let previewAspect: CGFloat = 320.0 / 256.0
+    /// The preview shows the full portrait camera frame.
+    private let previewAspect: CGFloat = 9.0 / 16.0
 
     /// Border pulses green on active recording, orange during cooldown, blue otherwise.
     private var previewBorderColor: Color {

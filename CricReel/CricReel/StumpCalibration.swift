@@ -66,7 +66,7 @@ enum StumpCrops {
 }
 
 /// Full camera frame with the stump box to drag (move) and pinch (resize) onto the
-/// bowler's-end stumps. The dashed outlines are the two crops the model sees.
+/// bowler's-end stumps, with a yellow line along the stump base across the frame.
 struct StumpCalibrationView: View {
     let frame: UIImage?
     @Binding var box: StumpBox
@@ -93,16 +93,20 @@ struct StumpCalibrationView: View {
 
             GeometryReader { geo in
                 let size = fitted(in: geo.size, aspect: frameAspect)
-                let crops = StumpCrops.rects(for: box, in: size)
+                let stumps = box.rect(in: size)
                 ZStack(alignment: .topLeading) {
                     if let frame {
                         Image(uiImage: frame).resizable()
                     } else {
                         Color.black.overlay(ProgressView().tint(.white))
                     }
-                    Path(crops.left).stroke(.cyan, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-                    Path(crops.right).stroke(.cyan, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-                    Path(box.rect(in: size)).stroke(.yellow, lineWidth: 2.5)
+                    // Base line across the frame: lines up with the crease to check tilt.
+                    Path { p in
+                        p.move(to: CGPoint(x: 0, y: stumps.maxY))
+                        p.addLine(to: CGPoint(x: size.width, y: stumps.maxY))
+                    }
+                    .stroke(.yellow.opacity(0.8), lineWidth: 1.5)
+                    Path(stumps).stroke(.yellow, lineWidth: 2.5)
                 }
                 .frame(width: size.width, height: size.height)
                 .clipped()
@@ -156,5 +160,26 @@ struct StumpCalibrationView: View {
                 box.height = min(max(start.height * value, 0.04), 0.6)
             }
             .onEnded { _ in pinchStart = nil }
+    }
+}
+
+/// Drawn over the live full-frame preview: the stump box, a horizontal line along the
+/// stump base across the frame and a vertical line from the stump centre to the top.
+struct StumpGuideOverlay: View {
+    let box: StumpBox
+
+    var body: some View {
+        GeometryReader { geo in
+            let stumps = box.rect(in: geo.size)
+            Path { p in
+                p.move(to: CGPoint(x: 0, y: stumps.maxY))
+                p.addLine(to: CGPoint(x: geo.size.width, y: stumps.maxY))
+                p.move(to: CGPoint(x: stumps.midX, y: stumps.maxY))
+                p.addLine(to: CGPoint(x: stumps.midX, y: 0))
+            }
+            .stroke(.yellow.opacity(0.8), lineWidth: 1)
+            Path(stumps).stroke(.yellow, lineWidth: 1.5)
+        }
+        .allowsHitTesting(false)
     }
 }

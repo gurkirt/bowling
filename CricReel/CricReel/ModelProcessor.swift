@@ -18,7 +18,7 @@ import Accelerate
 
 class ModelProcessor: ObservableObject {
     @Published var isModelLoaded = false
-    /// The two model-input crops side by side (left, mirrored right) for the live UI.
+    /// Downscaled full camera frame for the live UI.
     @Published var previewImage: UIImage?
     /// Downscaled full camera frame, published while `publishesFullFrame` is set (calibration).
     @Published var fullFramePreview: UIImage?
@@ -152,11 +152,11 @@ class ModelProcessor: ObservableObject {
         let crops = stumpCrops(from: image)
         let w = StumpCrops.inputWidth, h = StumpCrops.inputHeight
 
-        // Preview of the model input (every 4 scored frames), rendered at model resolution.
+        // Live preview (every 4 scored frames).
         if frameCounter % 4 == 0 {
-            let pair = crops.right.transformed(by: CGAffineTransform(translationX: CGFloat(w), y: 0))
-                .composited(over: crops.left)
-            if let ui = renderUIImage(from: pair, targetSize: CGSize(width: 2 * w, height: h)) {
+            // Full frame (the stump guide is drawn over it by the view).
+            let size = CGSize(width: 360, height: (360 * image.extent.height / image.extent.width).rounded())
+            if let ui = renderUIImage(from: image, targetSize: size) {
                 DispatchQueue.main.async { [weak self] in self?.previewImage = ui }
             }
         }
